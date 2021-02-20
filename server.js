@@ -7,8 +7,8 @@ let validItems = ['user', 'pantry', 'site', 'box', 'recipe'];
 let validMethods = ['GET', 'POST', 'DELETE', 'PUT'];
 
 const options = {
-    key: fs.readFileSync('key.pem'),
-    cert: fs.readFileSync('cert.pem')
+    key: fs.readFileSync('keys/server/key.pem'),
+    cert: fs.readFileSync('keys/server/cert.pem')
 };
 
 https.createServer(options, async function(request, response)
@@ -37,9 +37,9 @@ https.createServer(options, async function(request, response)
             /*
             ssl:
                 {
-                    CA: fs.readFileSync('ca.pem'),
-                    dbKey: options.key,
-                    dbCert: options.cert
+                    CA: fs.readFileSync('keys/database/ca.pem'),
+                    dbKey: fs.readFileSync('keys/database/server-key.pem'),
+                    dbCert: fs.readFileSync('keys/database/server-cert.pem')
                 }*/
         });
 
