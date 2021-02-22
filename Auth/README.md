@@ -11,6 +11,7 @@ to http://host:4000/user/register to register user
 
 post a json file in this type:  
 {  
+    "userName" : "tester01",
     "userEmail": "tester@test.com",  
     "userKey": "testerpass"  
 }  
