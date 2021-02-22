@@ -6,8 +6,9 @@ const authorize = require('_middleware/authorize')
 const userService = require('./user.service');
 
 // routes
-router.post('/authenticate', authenticateSchema, authenticate);
+router.post('/gettoken', gettokenSchema, gettoken);
 router.post('/register', registerSchema, register);
+router.post('/authenticate', authenticateSchema, authenticate)
 router.get('/', authorize(), getAll);
 router.get('/current', authorize(), getCurrent);
 router.get('/:id', authorize(), getById);
@@ -16,7 +17,7 @@ router.delete('/:id', authorize(), _delete);
 
 module.exports = router;
 
-function authenticateSchema(req, res, next) {
+function gettokenSchema(req, res, next) {
     const schema = Joi.object({
         userEmail: Joi.string().required(),
         userKey: Joi.string().required()
@@ -24,9 +25,9 @@ function authenticateSchema(req, res, next) {
     validateRequest(req, next, schema);
 }
 
-function authenticate(req, res, next) {
+function gettoken(req, res, next) {
     userService.authenticate(req.body)
-        .then(user => res.json(user))
+        .then(user => res.json(user.userToken))
         .catch(next);
 }
 
@@ -41,6 +42,20 @@ function registerSchema(req, res, next) {
 function register(req, res, next) {
     userService.create(req.body)
         .then(() => res.json({ message: 'Registration successful' }))
+        .catch(next);
+}
+
+function authenticateSchema(req, res, next) {
+    const schema = Joi.object({
+        userEmail: Joi.string().required(),
+        userKey: Joi.string().required()
+    });
+    validateRequest(req, next, schema);
+}
+
+function authenticate(req, res, next) {
+    userService.authenticate(req.body)
+        .then(user => res.json("Approved"))
         .catch(next);
 }
 
