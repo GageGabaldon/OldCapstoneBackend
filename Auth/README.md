@@ -9,5 +9,5 @@ post a json file in this type:
     "userKey": "testerpass"
 }
 
-to http://host:4000/user/register to register user
+to http://host:4000/user/register to register user  
 to http://host:4000/user/gettoken to get token
