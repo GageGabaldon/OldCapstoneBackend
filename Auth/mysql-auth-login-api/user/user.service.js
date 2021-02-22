@@ -2,8 +2,10 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const db = require('_helpers/db');
+const authorize = require('_middleware/authorize')
 
 module.exports = {
+    gettoken,
     authenticate,
     getAll,
     getById,
@@ -12,7 +14,7 @@ module.exports = {
     delete: _delete
 };
 
-async function authenticate({ userEmail, userKey }) {
+async function gettoken({ userEmail, userKey }) {
     const user = await db.User.scope('withHash').findOne({ where: { userEmail } });
 
     if (!user || !(await bcrypt.compare(userKey, user.userToken)))
@@ -22,6 +24,20 @@ async function authenticate({ userEmail, userKey }) {
     const userToken = jwt.sign({ sub: user.userID }, config.secret, { expiresIn: '7d' });
     return { ...omitHash(user.get()), userToken };
 }
+
+async function authenticate({ userEmail, userKey, userToken }) {
+    const user = await db.User.scope('withHash').findOne({ where: { userEmail } });
+    const token = await jwt.decode(userToken);
+
+    if (!user)
+        throw 'userEmail  is incorrect';
+    else if(!(await bcrypt.compare(userKey, user.userToken)))
+        throw 'userKey is incorrect';
+    else if(await token==user.token)
+        throw 'userToken is incorrect';
+
+}
+
 
 async function getAll() {
     return await db.User.findAll();

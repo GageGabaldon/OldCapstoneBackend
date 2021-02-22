@@ -26,7 +26,7 @@ function gettokenSchema(req, res, next) {
 }
 
 function gettoken(req, res, next) {
-    userService.authenticate(req.body)
+    userService.gettoken(req.body)
         .then(user => res.json(user.userToken))
         .catch(next);
 }
@@ -48,7 +48,8 @@ function register(req, res, next) {
 function authenticateSchema(req, res, next) {
     const schema = Joi.object({
         userEmail: Joi.string().required(),
-        userKey: Joi.string().required()
+        userKey: Joi.string().required(),
+        userToken: Joi.string().required()
     });
     validateRequest(req, next, schema);
 }
