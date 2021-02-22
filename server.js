@@ -30,8 +30,8 @@ https.createServer(options, async function(request, response)
         let dbcon = mysql.createConnection
         ({
             host: "23.254.161.117",
-            user: "admin",
-            password: "Fridgefiller2021",
+            user: "customer",
+            password: "FridgefillerCustomer",
             database: "FridgeFiller",
             debug: true
             /*
@@ -345,6 +345,8 @@ https.createServer(options, async function(request, response)
                             {
                                 // if the query specifies a search term
                             }
+
+
                             else if("cuisine" in query)
                             {
                                 // if the query wants recipes of a certain cuisine
@@ -413,18 +415,195 @@ https.createServer(options, async function(request, response)
                     switch (query.pathname)
                     {
                         case "/user":
+                            // 
+                            console.log("user case entered (used for DELETE), query is " + query.searchParams + '\n');
+
+                            // TODO: CHECK FOR AUTH CODE WHEN AUTH SERVER IMPLEMENTED
+                            /*&& "authcode" in query*/
+                            if (query.searchParams.has("uid"))
+                            {
+                                console.log("uid case entered\n");
+                                // first, check auth code (when auth server is ready)
+                                if (true)
+                                {
+                                    console.log("query formatted correctly\n");
+                                    // if the auth code is valid, construct the dbquery
+                                    dbQuery = "DELETE FROM User where userID = " + query.searchParams.get("uid");
+                                    // then, send the query to the database
+                                    sendQuery(dbQuery).then(sendResult);
+                                }
+                                else if (false)
+                                {
+                                    // else if auth code valid but permissions are wrong, return code 403 Forbidden
+                                    resultMessage.code = 403;
+                                    resultMessage.message = "Permissions not valid for this resource";
+
+                                    sendResult(resultMessage);
+                                }
+                                else
+                                {
+                                    // else return code 401 Unauthorized
+                                    resultMessage.code = 401;
+                                    resultMessage.message = "Authorization code not valid";
+
+                                    sendResult(resultMessage);
+                                }
+                            }
+                            // TODO: add login case for email/maybe phone number
+                            else
+                            {
+                                // if either the UID or authcode are missing, send back 400 Bad Request
+                                resultMessage.code = 400;
+                                resultMessage.message = "Request not valid";
+
+                                sendResult(resultMessage);
+                            }
 
                             break;
                         case "/pantry":
+                            //
+                            console.log("pantry case entered (used for DELETE), query is " + query.searchParams + '\n');
+
+                            if (query.searchParams.has("uid"))
+                            {
+                                console.log("uid case entered\n");
+                                // first, check auth code (when auth server is ready)
+                                if (true)
+                                {
+                                    console.log("query formatted correctly\n");
+                                    // if the auth code is valid, construct the dbQuery
+                                    dbQuery = "DELETE FROM User_has_Pantry where User_userID = " + query.searchParams.get("uid");
+                                    // then, send the query to the database
+                                    sendQuery(dbQuery).then(sendResult);
+                                }
+                                else if (false)
+                                {
+                                    // else if auth code valid but permissions are wrong, return code 403 Forbidden
+                                    resultMessage.code = 403;
+                                    resultMessage.message = "Permissions not valid for this resource";
+
+                                    sendResult(resultMessage);
+                                }
+                                else
+                                {
+                                    // else return code 401 Unauthorized
+                                    resultMessage.code = 401;
+                                    resultMessage.message = "Authorization code not valid";
+
+                                    sendResult(resultMessage);
+                                }
+                            }
+                            else
+                            {
+                                // if either the UID or authcode are missing, send back 400 Bad Request
+                                resultMessage.code = 400;
+                                resultMessage.message = "Request not valid";
+
+                                sendResult(resultMessage);
+                            }
 
                             break;
                         case "/recipe":
 
                             break;
                         case "/box":
+                            if("boxtype" in query)
+                            {
+                                dbQuery = "DELETE FROM Boxes_has_Ingredients where Boxes_boxID = " + query.searchParams.get("uid");
+
+                                sendQuery(dbQuery).then(sendResult);
+                            }
+                            else
+                            {
+                                // if box type identifier is not present, send back 400 Bad Request
+                                resultMessage.code = 400;
+                                resultMessage.message = "Request not valid, search term invalid";
+
+                                sendResult(resultMessage);
+                            }
 
                             break;
                         case "/site":
+                            // if request is for distribution sites/snap retailers, check query contents
+                            if("city" in query)
+                            {
+                                if("county" in query || "state" in query || "zip" in query)
+                                {
+                                    // multiple query terms present, send back 400 Bad Request
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Request not valid, multiple search terms present";
+
+                                    sendResult(resultMessage);
+                                }
+                                else
+                                {
+                                    // build query
+                                    dbQuery = "DELETE FROM DistributionSites WHERE siteCity = " + query.searchParams.get("city");
+                                    // send query to database
+                                    sendQuery(dbQuery).then(sendResult);
+                                }
+                            }
+                            else if("county" in query)
+                            {
+                                if("city" in query || "state" in query || "zip" in query)
+                                {
+                                    // multiple query terms present, send back 400 Bad Request
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Request not valid, multiple search terms present";
+
+                                    sendResult(resultMessage);
+                                }
+                                else
+                                {
+                                    // build query
+                                    dbQuery = "DELETE FROM DistributionSites WHERE siteCounty = " + query.searchParams.get("county");
+                                    // send query to database
+                                    sendQuery(dbQuery).then(sendResult);
+                                }
+                            }
+                            else if("state" in query)
+                            {
+                                if("county" in query || "city" in query || "zip" in query)
+                                {
+                                    // multiple query terms present, send back 400 Bad Request
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Request not valid, multiple search terms present";
+
+                                    sendResult(resultMessage);
+                                }
+                                else
+                                {
+                                    // build query
+                                    dbQuery = "DELETE FROM DistributionSites WHERE siteState = " + query.searchParams.get("state");
+                                    // send query to database
+                                    sendQuery(dbQuery).then(sendResult);
+                                }
+                            }
+                            else if("zip" in query)
+                            {
+                                if("county" in query || "state" in query || "city" in query)
+                                {
+                                    // multiple query terms present, send back 400 Bad Request
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Request not valid, multiple search terms present";
+
+                                    sendResult(resultMessage);
+                                }
+                                else
+                                {
+                                    // build query
+                                    dbQuery = "DELETE FROM DistributionSites WHERE siteZip = " + query.searchParams.get("zip");
+                                    // send query to database
+                                    sendQuery(dbQuery).then(sendResult);
+                                }
+                            }
+                            else
+                            {
+                                resultMessage.code = 400;
+                                resultMessage.message = "Request not valid, search term invalid";
+
+                                sendResult(resultMessage);
+                            }
 
                             break;
                     }
