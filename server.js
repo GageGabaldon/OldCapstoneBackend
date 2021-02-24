@@ -33,9 +33,8 @@ https.createServer(options, async function(request, response)
             user: "admin",
             password: "Fridgefiller2021",
             database: "FridgeFiller",
-            debug: true
-            /*
-            ssl:
+            debug: true,
+            /*ssl:
                 {
                     CA: fs.readFileSync('keys/database/ca.pem'),
                     dbKey: fs.readFileSync('keys/database/server-key.pem'),
@@ -43,9 +42,7 @@ https.createServer(options, async function(request, response)
                 }*/
         });
 
-        let x  = response;
-
-        return new Promise(function(resolve)
+        return new Promise(function(resolve, reject)
         {
             let localResult = {};
 
@@ -59,7 +56,7 @@ https.createServer(options, async function(request, response)
 
                     console.log("Database query failed, exiting\n");
 
-                    resolve(localResult);
+                    reject(localResult);
                 }
 
                 localResult.code = 200;
@@ -73,7 +70,7 @@ https.createServer(options, async function(request, response)
                     if(err)
                     {
                         console.log("Database connection could not be ended\n");
-                        resolve(localResult);
+                        reject(localResult);
                     }
 
                     console.log("Database connection closed, exiting\n");
@@ -141,6 +138,61 @@ https.createServer(options, async function(request, response)
     }
 
 
+
+    // TODO: EXPAND THIS FUNCTION SO IT CAN BE USED BY MORE THAN THE RECIPE TABLE
+    // do this by checking the resource name at query.pathname, have cases for each
+    /*
+        Function: formatSortBy
+        Arguments: query (query object from parsed URL)
+        Description: This function checks the query for sort terms, formats the necessary query string, and returns that string
+        Return: a String that can be concatenated onto another query string to sort the query results. If the string is null, the
+                sort term is invalid.
+     */
+    function formatSortBy(query)
+    {
+        let formatString = "";
+
+        if(query.searchParams.get("sortby") === "rating")
+        {
+            formatString = " ORDER BY recipeRating";
+        }
+        else if("cooktime")
+        {
+            formatString = " ORDER BY timeToMake";
+        }
+        else if("popular")
+        {
+            formatString = " ORDER BY numRatings";
+        }
+        else if("cuisine")
+        {
+            formatString = " ORDER BY cuisineType";
+        }
+
+        return formatString;
+    }
+
+
+// TODO: REWRITE THIS FUNCTION DESCRIPTION
+    /*
+        Function: formatSortBy
+        Arguments: query (query object from parsed URL)
+        Description: This function checks the query for sort terms, formats the necessary query string, and returns that string
+        Return: a String that can be concatenated onto another query string to sort the query results. If the string is null, the
+                sort term is invalid.
+     */
+    function formatLimit(query)
+    {
+        let limitStr = "";
+
+        if("limit" in query)
+        {
+            limitStr = " LIMIT " + query.searchParams.get("limit");
+        }
+
+        return limitStr;
+    }
+
     // start server logic
     console.log("provided url is "+ request.url +'\n');
 
@@ -198,7 +250,13 @@ https.createServer(options, async function(request, response)
                                     sendResult(resultMessage);
                                 }
                             }
-                            // TODO: add login case for email/maybe phone number
+                            else if("uemail" in query)
+                            {
+                                // get user information based on email
+                                dbQuery = `SELECT userName, userPhone, userID FROM User WHERE userEmail = ${query.searchParams.get("uemail")};`;
+
+                                sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                            }
                             else
                             {
                                 // if either the UID or authcode are missing, send back 400 Bad Request
@@ -212,15 +270,18 @@ https.createServer(options, async function(request, response)
                         case "/pantry":
                             if (query.searchParams.has("uid"))
                             {
-                                console.log("uid case entered\n");
+                                // console.log("uid case entered\n");
                                 // first, check auth code (when auth server is ready)
                                 if (true)
                                 {
                                     console.log("query formatted correctly\n");
                                     // if the auth code is valid, construct the dbQuery
-                                    dbQuery = "SELECT Pantry_foodID, Pantry_foodName, Pantry_foodUPC FROM User_has_Pantry where User_userID = " + query.searchParams.get("uid");
+                                    // SELECT Ingredients_IngID, IngName, ingredientQuantity, ingredientUnit FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID WHERE Pantry.User_userID = 3 AND Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID AND Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID;
+
+                                    let userID = query.searchParams.get("uid");
+                                    dbQuery = `SELECT Ingredients_IngID, IngName, ingredientQuantity, ingredientUnit FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID WHERE Pantry.User_userID = ${userID} AND Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID AND Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID;`;
                                     // then, send the query to the database
-                                    sendQuery(dbQuery).then(sendResult);
+                                    sendQuery(dbQuery).then(sendResult).catch(sendResult);
                                 }
                                 else if (false)
                                 {
@@ -334,24 +395,184 @@ https.createServer(options, async function(request, response)
                             break;
                         case "/recipe":
                             // if request is for recipes, check query contents
-
-                            // TODO: NEED TO FIGURE OUT THE LOGIC FOR THIS
-
                             if("uid" in query)
                             {
-                                // if the query wants recipes that a certain user can use given their pantry contents
+                                // if the query wants recipes for a certain user
+                                if("source" in query)
+                                {
+                                    if(query.searchParams.get("source") === "favorite")
+                                    {
+                                        // if the request is for recipes a user has favorited
+                                        dbQuery = `SELECT recipeID, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes LEFT JOIN User_has_Recipes ON Recipes.recipeID = User_has_Recipes.Recipes_recipeID WHERE User_has_Recipes.User_userID = ${query.searchParams.get("uid")}`;
+
+                                        if("sortby" in query)
+                                        {
+                                            // if the query wants user favorite recipes sorted in a certain way
+
+                                            let formatString = formatSortBy(query);
+
+                                            if(formatString !== "")
+                                            {
+                                                dbQuery.concat(formatString);
+                                            }
+                                            else
+                                            {
+                                                // else, return 400 Bad Request
+
+                                                resultMessage.code = 400;
+                                                resultMessage.message = "Request not valid, search term missing or not valid";
+
+                                                sendResult(resultMessage);
+                                            }
+                                        }
+
+                                        if("limit" in query)
+                                        {
+                                            let formatString = formatLimit(query);
+
+                                            dbQuery.concat(formatString);
+                                        }
+
+                                        dbQuery.concat(";");
+
+                                        sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                    }
+                                    else if(query.searchParams.get("source") === "pantry")
+                                    {
+                                        // if the request is for recipes a user can make with their pantry contents
+                                        // TODO: IMPLEMENT THIS QUERY
+                                        /*
+                                         1. get ingredients for a specific pantry in Pantry_has_Ingredients
+                                         2. join Pantry_has_Ingredients with Recipe_has_Ingredients on ingredient numbers
+                                         3. join Recipes with Recipe_has_Ingredients on recipeID
+                                         4.
+                                         */
+                                        dbQuery = "";
+
+                                        if("sortby" in query)
+                                        {
+                                            // if the query wants pantry-specific recipes sorted in a certain way
+                                            let formatString = formatSortBy(query);
+
+                                            if(formatString !== "")
+                                            {
+                                                dbQuery.concat(formatString);
+                                            }
+                                            else
+                                            {
+                                                // else, return 400 Bad Request
+
+                                                resultMessage.code = 400;
+                                                resultMessage.message = "Request not valid, search term missing or not valid";
+
+                                                sendResult(resultMessage);
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        // if neither case is true, send 400 Bad Request
+                                        resultMessage.code = 400;
+                                        resultMessage.message = "Request not valid, search term missing or not valid";
+
+                                        sendResult(resultMessage);
+                                    }
+
+                                    sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                }
+                                else
+                                {
+                                    // else, send back 400 Bad Request
+
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Request not valid, search term missing or not valid";
+
+                                    sendResult(resultMessage);
+                                }
                             }
                             else if("searchby" in query)
                             {
                                 // if the query specifies a search term
+                                dbQuery = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes WHERE recipeName LIKE ${query.searchParams.get("searchby")}`;
+
+                                if("sortby" in query)
+                                {
+                                    // if the query wants recipes with a specific search term returned in a certain order
+                                    let formatString = formatSortBy(query);
+
+                                    dbQuery.concat(formatString);
+                                }
+
+                                if("limit" in query)
+                                {
+                                    let formatString = formatLimit(query);
+
+                                    dbQuery.concat(formatString);
+                                }
+
+                                dbQuery.concat(";");
+
+                                sendQuery(dbQuery).then(sendResult).catch(sendResult);
                             }
                             else if("cuisine" in query)
                             {
                                 // if the query wants recipes of a certain cuisine
+                                dbQuery = `SELECT recipeID, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes WHERE cuisineType = ${query.searchParams.get("cuisine")}`;
+
+                                if("sortby" in query)
+                                {
+                                    // if the query wants recipes of a certain cuisine returned in a certain order
+                                    dbQuery = dbQuery.concat(formatSortBy(query));
+                                }
+
+                                if("limit" in query)
+                                {
+                                    dbQuery = dbQuery.concat(formatLimit(query));
+                                }
+
+                                dbQuery = dbQuery.concat(";");
+
+                                sendQuery(dbQuery).then(sendResult).catch(sendResult);
                             }
                             else if("sortby" in query)
                             {
                                 // if the query wants all recipes returned in a certain order
+
+                                // this string will be filled with a limit optimisation if the query specifies.
+                                let limitStr = "", sortbyString = "";
+
+                                dbQuery = "SELECT recipeID, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes";
+
+                                sortbyString = formatSortBy(query);
+
+                                if(sortbyString !== "")
+                                {
+                                    dbQuery = dbQuery.concat();
+
+                                    if("limit" in query)
+                                    {
+                                        limitStr = " LIMIT " + query.searchParams.get("limit");
+                                    }
+
+                                    dbQuery = dbQuery.concat(limitStr).concat(";");
+
+                                    sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                }
+                                else
+                                {
+                                    // else, the sort by term is invalid, return 400 bad request
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Request not valid, search term missing or not valid";
+
+                                    sendResult(resultMessage);
+                                }
+                            }
+                            else if("recipeID" in query)
+                            {
+                                // if the query wants a specific recipe
+                                dbQuery = `SELECT recipeID, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes WHERE recipeID = ${query.searchParams.get("recipeID")}`;
+
+                                sendQuery(dbQuery).then(sendResult).catch(sendResult);
                             }
                             else
                             {
@@ -386,14 +607,72 @@ https.createServer(options, async function(request, response)
 
                     break;
                 case "POST":
-                    // post logic goes here
                     switch (query.pathname)
                     {
                         case "/user":
+                            // CASE: adding new user
+                            if("uEmail" in query && "uPassword" in query && "uName" in query)
+                            {
+                                // INSERT INTO User_has_Pantry (User_userID) SELECT User.userID FROM User where User.userEmail = "jon.p.derr@gmail.com";
+                                // if all of the necessary fields are present
 
+                                /*
+                                INSERT INTO User (userName, userEmail, userKey) values ("Jon", "jon.p.derr@gmail.com", "password");
+                                INSERT INTO User_Pantry (User_userID) SELECT userId FROM User WHERE userEmail = "jon.p.derr@gmail.com";
+                                */
+
+                                // in this case, need to create a column in the user and the user_pantry table
+                                let line1 = "";
+                                let line2 = "";
+
+                                let colString = "(userEmail, userName, userKey";
+                                let valString = "(" + query.searchParams.get("uEmail") + ", " + query.searchParams.get("uPassword") + ", " + query.searchParams.get("uName");
+
+                                if("uPhone" in query)
+                                {
+                                    colString = colString.concat(", userPhone");
+                                    valString = valString.concat(", " + query.searchParams.get("uPhone"));
+                                }
+
+                                colString = colString.concat(") ");
+                                valString = valString.concat(");");
+
+                                line1 = "INSERT INTO User " + colString + " values + " + valString;
+                                line2 = "INSERT INTO Pantry (User_userID) SELECT userID FROM User WHERE userEmail = " + query.searchParams.get("uEmail") + ";";
+
+                                dbQuery = line1 + line2;
+
+                                sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                            }
+                            else
+                            {
+                                // else, the request is formatted incorrectly, send back 400 Bad Request
+                                resultMessage.code = 400;
+                                resultMessage.message = "Request formatted incorrectly.";
+
+                                sendResult(resultMessage);
+                            }
                             break;
                         case "/pantry":
+                            // CASE: adding new pantry contents
 
+                            /*
+                            INSERT INTO Ingredients (IngName) SELECT "Milk" FROM Ingredients WHERE NOT EXISTS (SELECT * FROM Ingredients WHERE Ingredients.IngName LIKE "Milk");
+                            INSERT INTO Pantry_has_Ingredients (Pantry_pantryID, Ingredients_IngID, ingredientQuantity, ingredientUnit) SELECT pantryID, IngID, 1, "Gallons" FROM Pantry, Ingredients WHERE Pantry.User_userID = "3" AND Ingredients.IngName LIKE "Milk";
+                             */
+
+                            if("rName" in query && "rSteps" in query && "rIngredients" in query)
+                            {
+                                // if all of the necessary fields are present
+                            }
+                            else
+                            {
+                                // else, the request is formatted incorrectly, send back 400 Bad Request
+                                resultMessage.code = 400;
+                                resultMessage.message = "Request formatted incorrectly.";
+
+                                sendResult(resultMessage);
+                            }
                             break;
                         case "/recipe":
 
@@ -402,6 +681,9 @@ https.createServer(options, async function(request, response)
 
                             break;
                         case "/site":
+
+                            break;
+                        case "/userfav":
 
                             break;
                     }
