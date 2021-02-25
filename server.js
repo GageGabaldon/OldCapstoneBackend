@@ -622,25 +622,23 @@ https.createServer(options, async function(request, response)
                                 */
 
                                 // in this case, need to create a column in the user and the user_pantry table
-                                let line1 = "";
-                                let line2 = "";
 
                                 let colString = "(userEmail, userName, userKey";
-                                let valString = "(" + query.searchParams.get("uEmail") + ", " + query.searchParams.get("uPassword") + ", " + query.searchParams.get("uName");
+                                let valString = `(${query.searchParams.get("uEmail")}, ${query.searchParams.get("uPassword")}, ${query.searchParams.get("uName")}`;
 
                                 if("uPhone" in query)
                                 {
                                     colString = colString.concat(", userPhone");
-                                    valString = valString.concat(", " + query.searchParams.get("uPhone"));
+                                    valString = valString.concat(`, ${query.searchParams.get("uPhone")}`);
                                 }
 
                                 colString = colString.concat(") ");
                                 valString = valString.concat(");");
 
-                                line1 = "INSERT INTO User " + colString + " values + " + valString;
-                                line2 = "INSERT INTO Pantry (User_userID) SELECT userID FROM User WHERE userEmail = " + query.searchParams.get("uEmail") + ";";
+                                let line1 = `INSERT INTO User ${colString} values ${valString}`;
+                                let line2 = `INSERT INTO Pantry (User_userID) SELECT userID FROM User WHERE userEmail = ${query.searchParams.get("uEmail")};`;
 
-                                dbQuery = line1 + line2;
+                                dbQuery = dbQuery.concat(line1).concat(line2);
 
                                 sendQuery(dbQuery).then(sendResult).catch(sendResult);
                             }
