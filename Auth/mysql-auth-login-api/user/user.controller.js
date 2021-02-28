@@ -6,8 +6,9 @@ const authorize = require('_middleware/authorize')
 const userService = require('./user.service');
 
 // routes
-router.post('/authenticate', authenticateSchema, authenticate);
+router.post('/gettoken', gettokenSchema, gettoken);
 router.post('/register', registerSchema, register);
+router.post('/authenticate', authenticateSchema, authenticate)
 router.get('/', authorize(), getAll);
 router.get('/current', authorize(), getCurrent);
 router.get('/:id', authorize(), getById);
@@ -16,24 +17,24 @@ router.delete('/:id', authorize(), _delete);
 
 module.exports = router;
 
-function authenticateSchema(req, res, next) {
+function gettokenSchema(req, res, next) {
     const schema = Joi.object({
-        username: Joi.string().required(),
-        password: Joi.string().required()
+        userEmail: Joi.string().required(),
+        userKey: Joi.string().required()
     });
     validateRequest(req, next, schema);
 }
 
-function authenticate(req, res, next) {
-    userService.authenticate(req.body)
-        .then(user => res.json(user))
+function gettoken(req, res, next) {
+    userService.gettoken(req.body)
+        .then(user => res.json(user.userToken))
         .catch(next);
 }
 
 function registerSchema(req, res, next) {
     const schema = Joi.object({
-        username: Joi.string().required(),
-        password: Joi.string().min(6).required()
+        userEmail: Joi.string().required(),
+        userKey: Joi.string().min(6).required()
     });
     validateRequest(req, next, schema);
 }
@@ -41,6 +42,21 @@ function registerSchema(req, res, next) {
 function register(req, res, next) {
     userService.create(req.body)
         .then(() => res.json({ message: 'Registration successful' }))
+        .catch(next);
+}
+
+function authenticateSchema(req, res, next) {
+    const schema = Joi.object({
+        userEmail: Joi.string().required(),
+        userKey: Joi.string().required(),
+        userToken: Joi.string().required()
+    });
+    validateRequest(req, next, schema);
+}
+
+function authenticate(req, res, next) {
+    userService.authenticate(req.body)
+        .then(user => res.json("Approved"))
         .catch(next);
 }
 
@@ -62,8 +78,8 @@ function getById(req, res, next) {
 
 function updateSchema(req, res, next) {
     const schema = Joi.object({
-        username: Joi.string().empty(''),
-        password: Joi.string().min(6).empty('')
+        userEmail: Joi.string().empty(''),
+        userKey: Joi.string().min(6).empty('')
     });
     validateRequest(req, next, schema);
 }
@@ -74,7 +90,7 @@ function update(req, res, next) {
         .catch(next);
 }
 
-function _delete(req, res, next) {
+function _delete(req, res, next) { 
     userService.delete(req.params.id)
         .then(() => res.json({ message: 'User deleted successfully' }))
         .catch(next);
