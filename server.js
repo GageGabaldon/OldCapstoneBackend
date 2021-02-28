@@ -84,7 +84,88 @@ https.createServer(options, async function(request, response)
             });
         });
     }
+    
+    
+    
+    
+    
+    //userObj used for test
+    /*
+    const obj= {
+        "userName": "localUpload",
+        "userPhone": "239482323",
+        "userEmail": "localUpload@.com",
+        "userKey": "localUpload",
+        "userToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEwLCJpYXQiOjE2MTQ1NDcwMjIsImV4cCI6MTYxNTE1MTgyMn0.a49OddIt2qjpC3rUImYqLTmqdGzpqGY74Sz9vtb4pbY"
+    };
+    */
 
+    var request = require('request');
+    var EventEmitter = require("events").EventEmitter;
+    var event = new EventEmitter();
+    var globalBody = ''; 
+    /*
+        Function: checkToken
+        Arguments: userObj, it's json file contains user's infomation
+        Description: use this function to check user's information
+        Return: Approved (if check success) result
+    
+        userObj style:
+        const obj= {
+            "userName": " ",
+            "userPhone": " ",
+            "userEmail": " ",
+            "userKey": " ",
+            "userToken": " "
+        };
+    */
+    function checkToken(userObj)
+    {
+        console.log("Check start(Authenticate)");
+
+        //post user's infomation to the authentication server
+        request.post({
+            url: 'http://23.254.161.117:4000/user/authenticate',
+            body: userObj,
+            json: true
+        },function(error, response, body){
+            event.body = body;
+            event.emit('update');
+        });
+
+        //waiting on async post
+            event.on('update', function () {
+            globalBody = event.body;
+            checkResult(globalBody);
+        });
+        console.log("Check end(Authenticate)");
+    }
+
+
+    /*
+        Function: checkResult
+        Arguments: globalBody which is the result sent from authenticate server
+        Description: use to get authenticate result from authenticate server
+        Return: true if approved, false if user information is not true
+    */
+    async function checkResult(globalBody)
+    {
+        var result = globalBody;
+        console.log(result);
+
+        if(result == "Approved")
+        {
+            await console.log("true");
+            return true;
+        }
+        else
+        {
+            await  console.log("false");
+            return false;
+        }
+    }
+
+    
 
 
     /*
