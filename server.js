@@ -103,7 +103,8 @@ https.createServer(options, async function(request, response)
     var request = require('request');
     var EventEmitter = require("events").EventEmitter;
     var event = new EventEmitter();
-    var globalBody = ''; 
+    var globalBody = '';
+    var checkFlag = 'false';
     /*
         Function: checkToken
         Arguments: userObj, it's json file contains user's infomation
@@ -156,15 +157,34 @@ https.createServer(options, async function(request, response)
         if(result == "Approved")
         {
             await console.log("true");
+            await( checkFlag = 'true');
             return true;
         }
         else
         {
             await  console.log("false");
+            await( checkFlag = 'false');
             return false;
         }
     }
-
+    
+    
+    //run example
+    /*
+    //call the checkToken to send user info to authenticate server
+    checkToken(obj);
+    
+    //wait for async event
+    event.on('checked', function(){
+        //get in function(send query, update pantry.....)
+        if(checkFlag == 'true'){
+            console.log("check true");
+        }
+        else{
+        console.log("check false");
+        }
+    });
+    */
     
 
 
