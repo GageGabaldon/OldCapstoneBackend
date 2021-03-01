@@ -138,6 +138,7 @@ https.createServer(options, async function(request, response)
             event.on('update', function () {
             globalBody = event.body;
             checkResult(globalBody);
+            event.emit('checked');
         });
         console.log("Check end(Authenticate)");
     }
