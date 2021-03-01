@@ -847,7 +847,16 @@ https.createServer(options, async function(request, response)
                             // if request is for food boxes, check query contents
                             if(query.searchParams.has("boxname"))
                             {
-                                let queryString = `SELECT boxID, boxName, IngName FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxName = ${query.searchParams.get("boxname")};`
+                                let queryString = "";
+
+                                if(query.searchParams.get("boxname") === '*')
+                                {
+                                    queryString = `SELECT boxID, boxName, IngName FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID;`;
+                                }
+                                else
+                                {
+                                    queryString = `SELECT boxID, boxName, IngName FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxName = ${query.searchParams.get("boxname")};`
+                                }
 
                                 dbQuery.push(queryString);
 
@@ -856,14 +865,12 @@ https.createServer(options, async function(request, response)
                             else
                             {
                                 // maybe get rid of this?
-                                /*
+
                                 // if box type identifier is not present, send back 400 Bad Request
                                 resultMessage.code = 400;
                                 resultMessage.message = "Request not valid, search term invalid";
 
                                 sendResult(resultMessage);
-                                 */
-                                dbQuery = `SELECT boxID, boxName, IngName FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID;`;
                             }
                             break;
                     }
@@ -880,8 +887,7 @@ https.createServer(options, async function(request, response)
                             request.on("data", function(inData)
                             {
                                 // when data is received, concatenate it to the data string
-                                let rawData = inData.toString();
-                                data = data.concat(rawData);
+                                data = data.concat(inData.toString());
                             });
 
                             request.on("end", function()
@@ -1123,11 +1129,74 @@ https.createServer(options, async function(request, response)
 
                             break;
                         case "/box":
+                            // CASE: posting new food box
 
+                            let line1 = "", line2 = "", line3 = "";
+
+                            request.on("data", function(dataIn)
+                            {
+                                data = data.concat(dataIn);
+                            });
+
+                            request.on("end", function()
+                            {
+                                let queryData = JSON.parse(data);
+
+                                if(queryData.hasOwnProperty("boxName"))
+                                {
+                                    // first, create entry in box table
+                                    line1 = `INSERT INTO Boxes (boxName) VALUES ("${queryData.boxName}");`;
+
+                                    dbQuery.push(line1);
+
+                                    if(queryData.hasOwnProperty("ingredients"))
+                                    {
+                                        // for each ingredient
+                                        for(let index = 0; index < queryData.ingredients.length; index++)
+                                        {
+                                            if(queryData.ingredients[index].hasOwnProperty("ingName") && queryData.ingredients[index].hasOwnProperty("ingredientQuantity"))
+                                            {
+                                                // next, add ingredients to ingredients table
+                                                line2 = `INSERT INTO Ingredients (IngName) SELECT "${queryData.ingredients[index].ingName}" FROM Ingredients WHERE NOT EXISTS (SELECT * FROM Ingredients WHERE Ingredients.IngName LIKE "${queryData.ingredients[index].ingName}") LIMIT 1`;
+                                                dbQuery.push(line2);
+
+                                                // then, add ingredients to box_has_ingredients table
+                                                line3 = `INSERT INTO Boxes_has_Ingredients (Boxes_boxID, Ingredients_IngID, ingredientQuantity) SELECT boxID, IngID, ${queryData.ingredients[index].ingredientQuantity} FROM Boxes, Ingredients WHERE Boxes.boxName = "${queryData.boxName}" AND Ingredients.IngName = "${queryData.ingredients[index].ingName}"`;
+                                                dbQuery.push(line3);
+                                            }
+                                            else
+                                            {
+                                                resultMessage.code = 400;
+                                                resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
+
+                                                sendResult(resultMessage);
+
+                                                break;
+                                            }
+                                        }
+                                        // send queries
+                                        sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                    }
+                                    else
+                                    {
+                                        resultMessage.code = 400;
+                                        resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
+
+                                        sendResult(resultMessage);
+                                    }
+                                }
+                                else
+                                {
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
+
+                                    sendResult(resultMessage);
+                                }
+                            });
 
                             break;
                         case "/site":
-                            // CASE: posting new user site
+                            // CASE: posting new distribution site
 
                             break;
                         case "/userfav":
