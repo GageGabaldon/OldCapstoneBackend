@@ -108,7 +108,7 @@ https.createServer(options, async function(request, response)
         Function: checkToken
         Arguments: userObj, it's json file contains user's infomation
         Description: use this function to check user's information
-        Return: Approved (if check success) result
+        Return: use with checkResult functoin
     
         userObj style:
         const obj= {
