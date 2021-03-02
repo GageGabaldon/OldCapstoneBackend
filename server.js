@@ -35,21 +35,24 @@ https.createServer(options, async function(request, response)
             password: "FridgefillerCustomer",
             database: "FridgeFiller",
             debug: true,
-            /*ssl:
+            /*
+            ssl:
                 {
                     CA: fs.readFileSync('keys/database/ca.pem'),
                     dbKey: fs.readFileSync('keys/database/server-key.pem'),
                     dbCert: fs.readFileSync('keys/database/server-cert.pem')
-                }*/
+                }
+
+             */
         });
 
-        return new Promise(function(resolve, reject)
+        return new Promise(async function(resolve, reject)
         {
             let localResult = {code: 200, message: "Database Query Successful", content: []};
 
             let queryPromise = new Promise(async function (resolve, reject)
             {
-                for(query in queries)
+                for(let query = 0; query < queries.length; query++)
                 {
                     await dbcon.query(queries[query], function (dberr, dbResult, fields)
                     {
@@ -279,7 +282,7 @@ https.createServer(options, async function(request, response)
     {
         let formatString = "";
 
-        if(query.pathname === "recipes")
+        if(query.pathname === "/recipe")
         {
             if(query.searchParams.get("sortby") === "rating")
             {
@@ -452,6 +455,11 @@ https.createServer(options, async function(request, response)
 
     // start server logic
     console.log("provided url is "+ request.url +'\n');
+
+    response.setHeader("Access-Control-Allow-Origin", '*');
+    response.setHeader("Access-Control-Request-Method", '*');
+    response.setHeader("Access-Control-Allow-Methods", 'GET, POST, DELETE, PUT');
+    response.setHeader("Access-Control-Allow-Headers", '*');
 
     let query = new url.URL(request.url, `https://${request.headers.host}`);
     let dbQuery = [];
@@ -764,12 +772,10 @@ https.createServer(options, async function(request, response)
 
                                 sendQuery(dbQuery).then(sendResult).catch(sendResult);
                             }
-
-
                             else if(query.searchParams.has("cuisine"))
                             {
                                 // if the query wants recipes of a certain cuisine
-                                let queryString = `SELECT recipeID, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes WHERE cuisineType = ${query.searchParams.get("cuisine")}`;
+                                let queryString = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes WHERE cuisineType = "${query.searchParams.get("cuisine")}"`;
 
                                 if(query.searchParams.has("sortby"))
                                 {
