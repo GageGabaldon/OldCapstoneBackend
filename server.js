@@ -762,7 +762,7 @@ https.createServer(options, async function(request, response)
                                 // this string will be filled with a limit optimisation if the query specifies.
                                 let limitStr = "", sortbyString = "";
 
-                                let queryString = `SELECT recipeID, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes`;
+                                let queryString = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes`;
 
                                 sortbyString = formatSortBy(query);
 
@@ -789,7 +789,7 @@ https.createServer(options, async function(request, response)
                                 }
                             } else if (query.searchParams.has("recipeID")) {
                                 // if the query wants a specific recipe
-                                let queryString = `SELECT recipeID, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes WHERE recipeID = ${query.searchParams.get("recipeID")}`;
+                                let queryString = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes WHERE recipeID = ${query.searchParams.get("recipeID")}`;
 
                                 dbQuery.push(queryString);
 
