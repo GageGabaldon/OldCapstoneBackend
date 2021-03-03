@@ -68,14 +68,25 @@ https.createServer(options, async function(request, response)
                         }
                         else
                         {
-                            localResult.content.push(dbResult);
+                            if(dbResult.length !== 0)
+                            {
+                                localResult.content.push(dbResult);
 
-                            console.log(`Database query ${query.toString()} successful\n`);
+                                console.log(`Database query ${query.toString()} successful\n`);
+
+                                resolve(localResult);
+                            }
+                            else
+                            {
+                                // else, the query result is empty, meaning nothing was found, so send 404 Not Found
+                                localResult.code = 404;
+                                localResult.message = "The requested data item could not be found";
+
+                                reject(localResult);
+                            }
                         }
                     });
                 }
-
-                resolve(localResult);
             });
 
             queryPromise.then(function(localResult)
@@ -160,7 +171,7 @@ https.createServer(options, async function(request, response)
         Arguments: userObj, it's json file contains user's infomation
         Description: use this function to check user's information
         Return: use with checkResult functoin
-    
+
         userObj style:
         const obj= {
             "userName": " ",
@@ -222,13 +233,13 @@ https.createServer(options, async function(request, response)
             return false;
         }
     }
-    
-    
+
+
     //run example
     /*
     //call the checkToken to send user info to authenticate server
     checkToken(obj);
-    
+
     //wait for async event
     event.on('checked', function(){
         //get in function(send query, update pantry.....)
@@ -352,104 +363,116 @@ https.createServer(options, async function(request, response)
 
     /*
         Function: getRecipeData
-        Arguments: queryResult (JSON object holding the results of the query)
-        Description: This function builds a JSON object for each recipe that can be made based on a user's pantry contents
+        Arguments: queryResult (Single-element array of JSON objects holding the results of the query)
+        Description: This function builds a JSON object for each recipe in the query results
         Return: a JSON object containing complete recipe information
-
-        does this need to be async? if so, I would be better off returning a promise and using forEach/callbacks
      */
     function getRecipeData(queryResult)
     {
         console.log("getRecipeData entered");
-        let result, queryIDs = [], queryIDs_s;
-        // for result in queryResult
-        for(result in queryResult.content)
+
+        // there should only be one entry in the queryResult array, which is another array containing recipe information
+        let localQueryResult = queryResult.content[0];
+
+        if(localQueryResult.length !== 0)
         {
-            // add new fields: ingredients (array), steps (array), numSteps (int, init to 0), and numIngredients (int, init to 0)
-            queryResult.content[result].ingredients = [];
-            queryResult.content[result].steps = [];
-            queryResult.content[result].numSteps = 0;
-            queryResult.content[result].numIngredients = 0;
+            let result, queryIDs = [], queryIDs_s, querySet = [];
 
-            // push recipeID into recipeID array
-
-            if(queryResult.content[result].hasOwnProperty("recipeID"))
+            // for result in queryResult
+            for(result in localQueryResult)
             {
-                queryIDs.push(queryResult.content[result].recipeID);
-            }
-        }
+                // add new fields: ingredients (array), steps (array), numSteps (int, init to 0), and numIngredients (int, init to 0)
+                localQueryResult[result].ingredients = [];
+                localQueryResult[result].steps = [];
+                localQueryResult[result].numSteps = 0;
+                localQueryResult[result].numIngredients = 0;
 
-        console.log("queryresult modified");
-
-        // stringify recipeID array
-        queryIDs_s = `(${queryIDs.toString()})`;
-
-        // format query string for getting ingredients, use stringified recipeID array
-        let ingredientQuery = `SELECT Recipes_recipeID, IngID, IngName FROM FridgeFiller.Ingredients_has_Recipes INNER JOIN Ingredients ON Ingredients_has_Recipes.Ingredients_IngID = Ingredients.IngID WHERE Ingredients_has_Recipes.Recipes_recipeID IN ${queryIDs_s};`;
-
-        // format query string for getting steps, use stringified recipeID array
-        let stepQuery = `SELECT Recipes_recipeID, stepNum, stepContent FROM FridgeFiller.recipeSteps INNER JOIN Recipes ON recipeSteps.Recipes_recipeID = Recipes.recipeID WHERE recipeID IN ${queryIDs_s};`;
-
-        console.log("getRecipeData: entering promise");
-
-        return new Promise(async function(resolve, reject)
-        {
-            console.log("getRecipeData: promise entered");
-            // send queries, use await for each sendQuery call and store results in ingredientResult and stepResult
-            try
-            {
-                let ingredientResult = await sendQuery(ingredientQuery);
-                let stepResult = await sendQuery(stepQuery);
-                let ingValue, stepValue;
-
-                if(ingredientResult.length != 0 && stepResult.length != 0)
+                // push recipeID into recipeID array if it is present
+                if(localQueryResult[result].hasOwnProperty("recipeID"))
                 {
-                    // for result in queryResult (async)
-                    for(result in queryResult.content)
-                    {
-                        // for value in ingredientResult (NOT async)
-                        for(ingValue in ingredientResult.content)
-                        {
-                            // if recipeID in queryResult === recipeID in ingredientResult
-                            if(queryResult.content[result].recipeID === ingredientResult.content[ingValue].Recipes_recipeID)
-                            {
-                                // add ingredientResult entry at index value into queryResult.ingredients at current result index
-                                queryResult.content[result].ingredients.push(ingredientResult.content[ingValue]);
-                                queryResult.content[result].numIngredients++;
-                            }
-                        }
-
-                        // for value in stepResult (NOT async)
-                        for(stepValue in stepResult.content)
-                        {
-                            // if recipeID in queryResult === recipeID in stepResult
-                            if(queryResult.content[result].recipeID === stepResult.content[stepValue].Recipes_recipeID)
-                            {
-                                // add stepResult entry at index value into queryResult.steps
-                                queryResult.content[result].steps.push(stepResult.content[stepValue]);
-                                queryResult.content[result].numSteps++;
-                            }
-                        }
-                    }
-
-                    // return the modified queryResult object
-
-                    resolve(queryResult);
+                    queryIDs.push(localQueryResult[result].recipeID);
                 }
-                else
+            }
+
+            console.log("queryresult modified");
+
+            // stringify recipeID array
+            queryIDs_s = `(${queryIDs.toString()})`;
+
+            // format query string for getting ingredients, use stringified recipeID array
+            let ingredientQuery = `SELECT Recipes_recipeID, IngID, IngName FROM FridgeFiller.Recipe_has_Ingredients INNER JOIN Ingredients ON Recipe_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Recipe_has_Ingredients.Recipes_recipeID IN ${queryIDs_s};`;
+            querySet.push(ingredientQuery);
+
+            // format query string for getting steps, use stringified recipeID array
+            let stepQuery = `SELECT Recipes_recipeID, stepNum, stepContent FROM FridgeFiller.recipeSteps INNER JOIN Recipes ON recipeSteps.Recipes_recipeID = Recipes.recipeID WHERE recipeID IN ${queryIDs_s};`;
+            querySet.push(stepQuery);
+
+            console.log("getRecipeData: entering promise");
+
+            return new Promise(async function(resolve, reject)
+            {
+                console.log("getRecipeData: promise entered");
+                // send queries, use await for each sendQuery call and store results in ingredientResult and stepResult
+                try
                 {
+                    let queryResults = await sendQuery(querySet);
+                    let ingredientResult = queryResults.content[0];
+                    let stepResult = queryResults.content[1];
+                    let ingValue, stepValue;
+
+                    if(ingredientResult.length != 0 && stepResult.length != 0)
+                    {
+                        // for result in queryResult
+                        for(result in localQueryResult)
+                        {
+                            // for value in ingredientResult
+                            for(ingValue in ingredientResult)
+                            {
+                                // if recipeID in queryResult === recipeID in ingredientResult
+                                if(localQueryResult[result].recipeID === ingredientResult[ingValue].Recipes_recipeID)
+                                {
+                                    // add ingredientResult entry at index value into queryResult.ingredients at current result index
+                                    localQueryResult[result].ingredients.push(ingredientResult[ingValue]);
+                                    localQueryResult[result].numIngredients++;
+                                }
+                            }
+
+                            // for value in stepResult (NOT async)
+                            for(stepValue in stepResult)
+                            {
+                                // if recipeID in queryResult === recipeID in stepResult
+                                if(localQueryResult[result].recipeID === stepResult[stepValue].Recipes_recipeID)
+                                {
+                                    // add stepResult entry at index value into queryResult.steps
+                                    localQueryResult[result].steps.push(stepResult[stepValue]);
+                                    localQueryResult[result].numSteps++;
+                                }
+                            }
+                        }
+
+                        // return the modified queryResult object
+
+                        resolve(queryResult);
+                    }
+                    else
+                    {
+                        reject(queryResult);
+                    }
+                }
+                catch(err)
+                {
+                    queryResult.code = 500;
+                    queryResult.message = "Database query failed";
+
                     reject(queryResult);
                 }
-            }
-            catch(err)
-            {
-                queryResult.code = 500;
-                queryResult.message = "Database query failed";
 
-                reject(queryResult);
-            }
+            });
+        }
+        else
+        {
 
-        });
+        }
     }
 
 
@@ -518,7 +541,7 @@ https.createServer(options, async function(request, response)
                             else if(query.searchParams.has("uemail"))
                             {
                                 // get user information based on email
-                                dbQuery.push(`SELECT userName, userPhone, userID FROM User WHERE userEmail = ${query.searchParams.get("uemail")};`);
+                                dbQuery.push(`SELECT userName, userPhone, userID FROM User WHERE userEmail = "${query.searchParams.get("uemail")}";`);
 
                                 sendQuery(dbQuery).then(sendResult).catch(sendResult);
                             }
@@ -590,7 +613,7 @@ https.createServer(options, async function(request, response)
                                 else
                                 {
                                     // build query
-                                    dbQuery.push(`SELECT * FROM DistributionSites WHERE siteCity = ${query.searchParams.has("city")}`);
+                                    dbQuery.push(`SELECT * FROM DistributionSites WHERE siteCity = "${query.searchParams.has("city")}"`);
                                     // send query to database
                                     sendQuery(dbQuery).then(sendResult);
                                 }
@@ -608,7 +631,7 @@ https.createServer(options, async function(request, response)
                                 else
                                 {
                                     // build query
-                                    dbQuery.push(`SELECT * FROM DistributionSites WHERE siteCounty =  ${query.searchParams.get("county")}`);
+                                    dbQuery.push(`SELECT * FROM DistributionSites WHERE siteCounty =  "${query.searchParams.get("county")}"`);
                                     // send query to database
                                     sendQuery(dbQuery).then(sendResult);
                                 }
@@ -626,7 +649,7 @@ https.createServer(options, async function(request, response)
                                 else
                                 {
                                     // build query
-                                    dbQuery.push(`SELECT * FROM DistributionSites WHERE siteState = ${query.searchParams.get("state")}`);
+                                    dbQuery.push(`SELECT * FROM DistributionSites WHERE siteState = "${query.searchParams.get("state")}"`);
                                     // send query to database
                                     sendQuery(dbQuery).then(sendResult);
                                 }
@@ -667,7 +690,7 @@ https.createServer(options, async function(request, response)
                                 {
                                     // if the request is for recipes a user has favorited
 
-                                    let queryString = `SELECT recipeID, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes LEFT JOIN User_has_Recipes ON Recipes.recipeID = User_has_Recipes.Recipes_recipeID WHERE User_has_Recipes.User_userID = ${query.searchParams.get("uid")}`
+                                    let queryString = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes LEFT JOIN User_has_Recipes ON Recipes.recipeID = User_has_Recipes.Recipes_recipeID WHERE User_has_Recipes.User_userID = ${query.searchParams.get("uid")}`
 
                                     if (query.searchParams.has("sortby"))
                                     {
@@ -708,7 +731,7 @@ https.createServer(options, async function(request, response)
                                 else if(query.searchParams.get("source") === "pantry")
                                 {
                                     // if the request is for recipes a user can make with their pantry contents
-                                    let queryString = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Ingredients_has_Recipes INNER JOIN Pantry_has_Ingredients ON Ingredients_has_Recipes.Ingredients_IngID = Pantry_has_Ingredients.Ingredients_IngID INNER JOIN Recipes ON Ingredients_has_Recipes.Recipes_recipeID = Recipes.recipeID INNER JOIN Pantry on Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID WHERE Pantry.User_userID = ${query.searchParams.get("uid")};`;
+                                    let queryString = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Recipe_has_Ingredients INNER JOIN Pantry_has_Ingredients ON Recipe_has_Ingredients.Ingredients_IngID = Pantry_has_Ingredients.Ingredients_IngID INNER JOIN Recipes ON Recipe_has_Ingredients.Recipes_recipeID = Recipes.recipeID INNER JOIN Pantry on Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID WHERE Pantry.User_userID = ${query.searchParams.get("uid")};`;
 
                                     if(query.searchParams.has("sortby"))
                                     {
@@ -749,7 +772,7 @@ https.createServer(options, async function(request, response)
                             else if(query.searchParams.has("searchby"))
                             {
                                 // if the query specifies a search term
-                                let queryString = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes WHERE recipeName LIKE ${query.searchParams.get("searchby")}`;
+                                let queryString = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes WHERE recipeName LIKE "%${query.searchParams.get("searchby")}%"`;
 
                                 if(query.searchParams.has("sortby"))
                                 {
@@ -770,7 +793,10 @@ https.createServer(options, async function(request, response)
 
                                 dbQuery.push(queryString);
 
-                                sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                sendQuery(dbQuery).then(async function(result)
+                                {
+                                    getRecipeData(result).then(sendResult).catch(sendResult)
+                                }).catch(sendResult);
                             }
                             else if(query.searchParams.has("cuisine"))
                             {
@@ -792,7 +818,10 @@ https.createServer(options, async function(request, response)
 
                                 dbQuery.push(queryString);
 
-                                sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                sendQuery(dbQuery).then(async function(result)
+                                {
+                                    getRecipeData(result).then(sendResult).catch(sendResult);
+                                }).catch(sendResult);
                             }
                             else if(query.searchParams.has("sortby"))
                             {
@@ -818,7 +847,10 @@ https.createServer(options, async function(request, response)
 
                                     dbQuery.push(queryString);
 
-                                    sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                    sendQuery(dbQuery).then(async function(result)
+                                    {
+                                        getRecipeData(result).then(sendResult).catch(sendResult)
+                                    }).catch(sendResult);
                                 }
                                 else
                                 {
@@ -836,7 +868,10 @@ https.createServer(options, async function(request, response)
 
                                 dbQuery.push(queryString);
 
-                                sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                sendQuery(dbQuery).then(async function(result)
+                                {
+                                    getRecipeData(result).then(sendResult).catch(sendResult)
+                                }).catch(sendResult);
                             }
                             else
                             {
