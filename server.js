@@ -1238,8 +1238,13 @@ https.createServer(options, async function(request, response)
                     switch (query.pathname)
                     {
                         case "/user":
-                            // 
-                            console.log("user case entered (used for DELETE), query is " + query.searchParams + '\n');
+                            // check the path name for the requested resource
+                    console.log(`request type: DELETE, pathname is ${query.pathname} \n arguments are: ${query.searchParams.get("source")}`);
+                    switch (query.pathname)
+                    {
+                        case "/user":
+                            // if request is for user information, check query contents to make sure necessary items are present
+                            console.log(`user case entered, query is ${query.searchParams}\n`);
 
                             // TODO: CHECK FOR AUTH CODE WHEN AUTH SERVER IMPLEMENTED
                             /*&& "authcode" in query*/
@@ -1251,11 +1256,9 @@ https.createServer(options, async function(request, response)
                                 {
                                     console.log("query formatted correctly\n");
                                     // if the auth code is valid, construct the dbquery
-                                    // TODO: ADD ANOTHER LINE TO REMOVE THE USER'S PANTRY AS WELL
-                                    dbQuery = "DELETE FROM User where userID = " + query.searchParams.get("uid");
-
+                                    dbQuery.push(`DELETE FROM User where userID = ${query.searchParams.get("uid")}`);
                                     // then, send the query to the database
-                                    sendQuery(dbQuery).then(sendResult);
+                                    sendQuery(dbQuery).then(sendResult).catch(sendResult);
                                 }
                                 else if (false)
                                 {
@@ -1274,7 +1277,13 @@ https.createServer(options, async function(request, response)
                                     sendResult(resultMessage);
                                 }
                             }
-                            // TODO: add login case for email/maybe phone number
+                            else if(query.searchParams.has("uemail"))
+                            {
+                                // get user information based on email
+                                dbQuery.push(`DELETE FROM User WHERE userEmail = ${query.searchParams.get("uemail")};`);
+
+                                sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                            }
                             else
                             {
                                 // if either the UID or authcode are missing, send back 400 Bad Request
@@ -1286,20 +1295,20 @@ https.createServer(options, async function(request, response)
 
                             break;
                         case "/pantry":
-                            //
-                            console.log("pantry case entered (used for DELETE), query is " + query.searchParams + '\n');
-
                             if (query.searchParams.has("uid"))
                             {
-                                console.log("uid case entered\n");
+                                // console.log("uid case entered\n");
                                 // first, check auth code (when auth server is ready)
                                 if (true)
                                 {
                                     console.log("query formatted correctly\n");
                                     // if the auth code is valid, construct the dbQuery
-                                    dbQuery = "DELETE FROM User_has_Pantry where User_userID = " + query.searchParams.get("uid");
+                                    // DELETE  FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID WHERE Pantry.User_userID = 3 AND Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID AND Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID;
+
+                                    let userID = query.searchParams.get("uid");
+                                    dbQuery.push(`DELETE FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID WHERE Pantry.User_userID = ${userID} AND Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID AND Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID;`);
                                     // then, send the query to the database
-                                    sendQuery(dbQuery).then(sendResult);
+                                    sendQuery(dbQuery).then(sendResult).catch(sendResult);
                                 }
                                 else if (false)
                                 {
@@ -1328,108 +1337,226 @@ https.createServer(options, async function(request, response)
                             }
 
                             break;
+                        case "/sites":
+                            // if request is for distribution sites/snap retailers, check query contents
+                            if(query.searchParams.has("city"))
+                            {
+                                if(query.searchParams.has("county") || query.searchParams.has("state") || query.searchParams.has("zip"))
+                                {
+                                    // multiple query terms present, send back 400 Bad Request
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Request not valid, multiple search terms present";
+
+                                    sendResult(resultMessage);
+                                }
+                                else
+                                {
+                                    // build query
+                                    dbQuery.push(`DELETE FROM DistributionSites WHERE siteCity = ${query.searchParams.has("city")}`);
+                                    // send query to database
+                                    sendQuery(dbQuery).then(sendResult);
+                                }
+                            }
+                            else if(query.searchParams.has("county"))
+                            {
+                                if(query.searchParams.has("city") || query.searchParams.has("state") || query.searchParams.has("zip"))
+                                {
+                                    // multiple query terms present, send back 400 Bad Request
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Request not valid, multiple search terms present";
+
+                                    sendResult(resultMessage);
+                                }
+                                else
+                                {
+                                    // build query
+                                    dbQuery.push(`DELETE FROM DistributionSites WHERE siteCounty =  ${query.searchParams.get("county")}`);
+                                    // send query to database
+                                    sendQuery(dbQuery).then(sendResult);
+                                }
+                            }
+                            else if(query.searchParams.has("state"))
+                            {
+                                if(query.searchParams.has("county") || query.searchParams.has("city") || query.searchParams.has("zip"))
+                                {
+                                    // multiple query terms present, send back 400 Bad Request
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Request not valid, multiple search terms present";
+
+                                    sendResult(resultMessage);
+                                }
+                                else
+                                {
+                                    // build query
+                                    dbQuery.push(`DELETE FROM DistributionSites WHERE siteState = ${query.searchParams.get("state")}`);
+                                    // send query to database
+                                    sendQuery(dbQuery).then(sendResult);
+                                }
+                            }
+                            else if(query.searchParams.has("zip"))
+                            {
+                                if(query.searchParams.has("county") || query.searchParams.has("state") || query.searchParams.has("city"))
+                                {
+                                    // multiple query terms present, send back 400 Bad Request
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Request not valid, multiple search terms present";
+
+                                    sendResult(resultMessage);
+                                }
+                                else
+                                {
+                                    // build query
+                                    dbQuery.push(`DELETE FROM DistributionSites WHERE siteZip = ${query.searchParams.get("zip")}`);
+                                    // send query to database
+                                    sendQuery(dbQuery).then(sendResult);
+                                }
+                            }
+                            else
+                            {
+                                resultMessage.code = 400;
+                                resultMessage.message = "Request not valid, search term invalid";
+
+                                sendResult(resultMessage);
+                            }
+
+                            break;
                         case "/recipe":
+                            // if request is for recipes, check query contents
+                            if(query.searchParams.has("uid"))
+                            {
+                                // if the query wants recipes for a certain user
+                                if(query.searchParams.get("source") === "favorite")
+                                {
+                                    // if the request is for recipes a user has favorited
+
+                                    let queryString = `DELETE FROM Recipes LEFT JOIN User_has_Recipes ON Recipes.recipeID = User_has_Recipes.Recipes_recipeID WHERE User_has_Recipes.User_userID = ${query.searchParams.get("uid")}`
+
+                                    if (query.searchParams.has("sortby"))
+                                    {
+                                        // if the query wants user favorite recipes sorted in a certain way
+
+                                        let formatString = formatSortBy(query);
+
+                                        if (formatString !== "")
+                                        {
+                                            queryString.concat(formatString);
+                                        }
+                                        else
+                                        {
+                                            // else, return 400 Bad Request
+                                            resultMessage.code = 400;
+                                            resultMessage.message = "Request not valid, search term missing or not valid";
+
+                                            sendResult(resultMessage);
+                                        }
+                                    }
+
+                                    if (query.searchParams.has("limit"))
+                                    {
+                                        let formatString = formatLimit(query);
+
+                                        queryString.concat(formatString);
+                                    }
+
+                                    queryString.concat(";");
+
+                                    dbQuery.push(queryString);
+
+                                    sendQuery(dbQuery).then(async function(result)
+                                    {
+                                        await getRecipeData(result).then(sendResult).catch(sendResult)
+                                    }).catch(sendResult);
+                                }
+                                else if(query.searchParams.get("source") === "pantry")
+                                {
+                                    // if the request is for recipes a user can make with their pantry contents
+                                    let queryString = `DELETE FROM Ingredients_has_Recipes INNER JOIN Pantry_has_Ingredients ON Ingredients_has_Recipes.Ingredients_IngID = Pantry_has_Ingredients.Ingredients_IngID INNER JOIN Recipes ON Ingredients_has_Recipes.Recipes_recipeID = Recipes.recipeID INNER JOIN Pantry on Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID WHERE Pantry.User_userID = ${query.searchParams.get("uid")};`;
+
+                                    if(query.searchParams.has("sortby"))
+                                    {
+                                        // if the query wants pantry-specific recipes sorted in a certain way
+                                        let formatString = formatSortBy(query);
+
+                                        if(formatString !== "")
+                                        {
+                                            queryString.concat(formatString);
+                                        }
+                                        else
+                                        {
+                                            // else, return 400 Bad Request
+
+                                            resultMessage.code = 400;
+                                            resultMessage.message = "Request not valid, search term missing or not valid";
+
+                                            sendResult(resultMessage);
+                                        }
+                                    }
+
+                                    dbQuery.push(queryString);
+
+                                    sendQuery(dbQuery).then(async function(result)
+                                    {
+                                        await getRecipeData(result).then(sendResult).catch(sendResult)
+                                    }).catch(sendResult);
+                                }
+                                else
+                                {
+                                    // if neither case is true, send 400 Bad Request
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Request not valid, search term missing or not valid";
+
+                                    sendResult(resultMessage);
+                                }
+                            }
+                            else if(query.searchParams.has("recipeID"))
+                            {
+                                // if the query wants a specific recipe
+                                let queryString = `DELETE FROM Recipes WHERE recipeID = ${query.searchParams.get("recipeID")}`;
+
+                                dbQuery.push(queryString);
+
+                                sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                            }
+                            else
+                            {
+                                // if none of the above identifiers are present, send back 400 bad request
+
+                                resultMessage.code = 400;
+                                resultMessage.message = "Request not valid, search term missing or not valid";
+
+                                sendResult(resultMessage);
+                            }
 
                             break;
                         case "/box":
-                            if("boxtype" in query)
+                            // if request is for food boxes, check query contents
+                            if(query.searchParams.has("boxname"))
                             {
-                                dbQuery = "DELETE FROM Boxes_has_Ingredients where Boxes_boxID = " + query.searchParams.get("uid");
+                                let queryString = "";
+
+                                if(query.searchParams.get("boxname") === '*')
+                                {
+                                    queryString = `DELETE FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID;`;
+                                }
+                                else
+                                {
+                                    queryString = `DELETE FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxName = ${query.searchParams.get("boxname")};`
+                                }
+
+                                dbQuery.push(queryString);
 
                                 sendQuery(dbQuery).then(sendResult);
                             }
                             else
                             {
+                                // maybe get rid of this?
+
                                 // if box type identifier is not present, send back 400 Bad Request
                                 resultMessage.code = 400;
                                 resultMessage.message = "Request not valid, search term invalid";
 
                                 sendResult(resultMessage);
                             }
-
-                            break;
-                        case "/site":
-                            // if request is for distribution sites/snap retailers, check query contents
-                            if("city" in query)
-                            {
-                                if("county" in query || "state" in query || "zip" in query)
-                                {
-                                    // multiple query terms present, send back 400 Bad Request
-                                    resultMessage.code = 400;
-                                    resultMessage.message = "Request not valid, multiple search terms present";
-
-                                    sendResult(resultMessage);
-                                }
-                                else
-                                {
-                                    // build query
-                                    dbQuery = "DELETE FROM DistributionSites WHERE siteCity = " + query.searchParams.get("city");
-                                    // send query to database
-                                    sendQuery(dbQuery).then(sendResult);
-                                }
-                            }
-                            else if("county" in query)
-                            {
-                                if("city" in query || "state" in query || "zip" in query)
-                                {
-                                    // multiple query terms present, send back 400 Bad Request
-                                    resultMessage.code = 400;
-                                    resultMessage.message = "Request not valid, multiple search terms present";
-
-                                    sendResult(resultMessage);
-                                }
-                                else
-                                {
-                                    // build query
-                                    dbQuery = "DELETE FROM DistributionSites WHERE siteCounty = " + query.searchParams.get("county");
-                                    // send query to database
-                                    sendQuery(dbQuery).then(sendResult);
-                                }
-                            }
-                            else if("state" in query)
-                            {
-                                if("county" in query || "city" in query || "zip" in query)
-                                {
-                                    // multiple query terms present, send back 400 Bad Request
-                                    resultMessage.code = 400;
-                                    resultMessage.message = "Request not valid, multiple search terms present";
-
-                                    sendResult(resultMessage);
-                                }
-                                else
-                                {
-                                    // build query
-                                    dbQuery = "DELETE FROM DistributionSites WHERE siteState = " + query.searchParams.get("state");
-                                    // send query to database
-                                    sendQuery(dbQuery).then(sendResult);
-                                }
-                            }
-                            else if("zip" in query)
-                            {
-                                if("county" in query || "state" in query || "city" in query)
-                                {
-                                    // multiple query terms present, send back 400 Bad Request
-                                    resultMessage.code = 400;
-                                    resultMessage.message = "Request not valid, multiple search terms present";
-
-                                    sendResult(resultMessage);
-                                }
-                                else
-                                {
-                                    // build query
-                                    dbQuery = "DELETE FROM DistributionSites WHERE siteZip = " + query.searchParams.get("zip");
-                                    // send query to database
-                                    sendQuery(dbQuery).then(sendResult);
-                                }
-                            }
-                            else
-                            {
-                                resultMessage.code = 400;
-                                resultMessage.message = "Request not valid, search term invalid";
-
-                                sendResult(resultMessage);
-                            }
-
                             break;
                     }
 
