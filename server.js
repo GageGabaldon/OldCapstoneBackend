@@ -3,6 +3,7 @@ let https = require("https");
 let url = require("url");
 let mysql = require("mysql");
 let fs = require("fs");
+let EventEmitter = require("events").EventEmitter;
 let validItems = ['user', 'pantry', 'site', 'box', 'recipe'];
 let validMethods = ['GET', 'POST', 'DELETE', 'PUT'];
 // TODO: implement array of json objects that keep track of valid search terms
@@ -18,13 +19,13 @@ https.createServer(options, async function(request, response)
 
     /*
     Function: sendQuery
-    Arguments: query (formatted MySQL query)
+    Arguments: queries (array of formatted MySQL queries)
     Description: this function takes care of all communication with the database.
                  requires a valid MySQL query to work properly.
     Return: returns the results of the MySQL query as an object, or an object containing an error code and a brief
             description of the problem if an error was encountered.
     */
-    async function sendQuery(query)
+    async function sendQuery(queries)
     {
         console.log("sendQuery method entered\n");
         let dbcon = mysql.createConnection
@@ -34,138 +35,87 @@ https.createServer(options, async function(request, response)
             password: "FridgefillerCustomer",
             database: "FridgeFiller",
             debug: true,
-            /*ssl:
+            /*
+            ssl:
                 {
                     CA: fs.readFileSync('keys/database/ca.pem'),
                     dbKey: fs.readFileSync('keys/database/server-key.pem'),
                     dbCert: fs.readFileSync('keys/database/server-cert.pem')
-                }*/
+                }
+
+             */
         });
 
-        return new Promise(function(resolve, reject)
+        return new Promise(async function(resolve, reject)
         {
-            let localResult = {code: 500, message: "An unexpected error occurred", content: []};
+            let localResult = {code: 200, message: "Database Query Successful", content: []};
 
-            dbcon.query(query, function (dberr, dbResult, fields)
+            let queryPromise = new Promise(async function (resolve, reject)
             {
-                if (dberr)
+                for(let query = 0; query < queries.length; query++)
                 {
-                    // return an error code and a message in an object
-                    localResult.code = 500;
-                    localResult.message = "Database Query Failed";
-
-                    console.log("Database query failed, exiting\n");
-
-                    reject(localResult);
-                }
-                else
-                {
-                    localResult.code = 200;
-                    localResult.message = "Database Query Successful";
-                    localResult.content = dbResult;
-
-                    console.log("Database query successful\n");
-
-                    dbcon.end(function(err)
+                    await dbcon.query(queries[query], function (dberr, dbResult, fields)
                     {
-                        if(err)
+                        if (dberr)
                         {
-                            console.log("Database connection could not be ended\n");
+                            // return an error code and a message in an object
+                            localResult.code = 500;
+                            localResult.message = "Database Query Failed";
+
+                            console.log(`Database query ${query.toString()} failed, exiting\n`);
+
                             reject(localResult);
                         }
                         else
                         {
-                            console.log("Database connection closed, exiting\n");
+                            localResult.content.push(dbResult);
+
+                            console.log(`Database query ${query.toString()} successful\n`);
                         }
                     });
-
-                    resolve(localResult);
                 }
+
+                resolve(localResult);
+            });
+
+            queryPromise.then(function(localResult)
+            {
+                console.log("Query set finished");
+
+                dbcon.end(function(err)
+                {
+                    if(err)
+                    {
+                        console.log("Database connection could not be ended\n");
+                        reject(localResult);
+                    }
+                    else
+                    {
+                        console.log("Database connection closed, exiting\n");
+                        resolve(localResult);
+                    }
+                });
+            }).catch(function(localResult)
+            {
+                console.log("Query set aborted, error encountered");
+
+                dbcon.end(function(err)
+                {
+                    if(err)
+                    {
+                        console.log("Database connection could not be ended\n");
+                        reject(localResult);
+                    }
+                    else
+                    {
+                        console.log("Database connection closed, exiting\n");
+                        reject(localResult);
+                    }
+                });
             });
         });
     }
-    
-    
-    
-    
-    
-    //userObj used for test
-    /*
-    const obj= {
-        "userName": "localUpload",
-        "userPhone": "239482323",
-        "userEmail": "localUpload@.com",
-        "userKey": "localUpload",
-        "userToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEwLCJpYXQiOjE2MTQ1NDcwMjIsImV4cCI6MTYxNTE1MTgyMn0.a49OddIt2qjpC3rUImYqLTmqdGzpqGY74Sz9vtb4pbY"
-    };
-    */
 
-    var request = require('request');
-    var EventEmitter = require("events").EventEmitter;
-    var event = new EventEmitter();
-    var globalBody = ''; 
-    /*
-        Function: checkToken
-        Arguments: userObj, it's json file contains user's infomation
-        Description: use this function to check user's information
-        Return: Approved (if check success) result
-    
-        userObj style:
-        const obj= {
-            "userName": " ",
-            "userPhone": " ",
-            "userEmail": " ",
-            "userKey": " ",
-            "userToken": " "
-        };
-    */
-    function checkToken(userObj)
-    {
-        console.log("Check start(Authenticate)");
-
-        //post user's infomation to the authentication server
-        request.post({
-            url: 'http://23.254.161.117:4000/user/authenticate',
-            body: userObj,
-            json: true
-        },function(error, response, body){
-            event.body = body;
-            event.emit('update');
-        });
-
-        //waiting on async post
-            event.on('update', function () {
-            globalBody = event.body;
-            checkResult(globalBody);
-        });
-        console.log("Check end(Authenticate)");
-    }
-
-
-    /*
-        Function: checkResult
-        Arguments: globalBody which is the result sent from authenticate server
-        Description: use to get authenticate result from authenticate server
-        Return: true if approved, false if user information is not true
-    */
-    async function checkResult(globalBody)
-    {
-        var result = globalBody;
-        console.log(result);
-
-        if(result == "Approved")
-        {
-            await console.log("true");
-            return true;
-        }
-        else
-        {
-            await  console.log("false");
-            return false;
-        }
-    }
-
-    
 
 
     /*
@@ -190,13 +140,106 @@ https.createServer(options, async function(request, response)
         else
         {
             response.writeHead(200, "Database query successful");
-            response.write(JSON.stringify(funcResult.content));
+
+            for(let index = 0; index < funcResult.content.length; index++)
+            {
+                response.write(JSON.stringify(funcResult.content[index]));
+            }
+
             response.end();
             console.log("No error encountered, response written\n");
         }
 
         console.log("Request processed\n");
     }
+
+
+
+    /*
+        Function: checkToken
+        Arguments: userObj, it's json file contains user's infomation
+        Description: use this function to check user's information
+        Return: use with checkResult functoin
+    
+        userObj style:
+        const obj= {
+            "userName": " ",
+            "userPhone": " ",
+            "userEmail": " ",
+            "userKey": " ",
+            "userToken": " "
+        };
+    */
+    function checkToken(userObj)
+    {
+        console.log("Check start(Authenticate)");
+
+        let event = new EventEmitter();
+
+        let options = {
+            url: 'http://23.254.161.117:4000/user/authenticate',
+            body: userObj,
+            json: true
+        };
+
+        //post user's infomation to the authentication server
+        https.request.post(options, function(error, response, body){
+            event.body = body;
+            event.emit('update');
+        });
+
+        //waiting on async post
+            event.on('update', function () {
+            checkResult(event.body);
+            event.emit('checked');
+        });
+        console.log("Check end(Authenticate)");
+    }
+
+
+
+    /*
+        Function: checkResult
+        Arguments: globalBody which is the result sent from authenticate server
+        Description: use to get authenticate result from authenticate server
+        Return: true if approved, false if user information is not true
+    */
+    async function checkResult(globalBody)
+    {
+        var result = globalBody;
+        console.log(result);
+
+        if(result == "Approved")
+        {
+            await console.log("true");
+            await( checkFlag = 'true');
+            return true;
+        }
+        else
+        {
+            await  console.log("false");
+            await( checkFlag = 'false');
+            return false;
+        }
+    }
+    
+    
+    //run example
+    /*
+    //call the checkToken to send user info to authenticate server
+    checkToken(obj);
+    
+    //wait for async event
+    event.on('checked', function(){
+        //get in function(send query, update pantry.....)
+        if(checkFlag == 'true'){
+            console.log("check true");
+        }
+        else{
+        console.log("check false");
+        }
+    });
+    */
 
 
 
@@ -239,7 +282,7 @@ https.createServer(options, async function(request, response)
     {
         let formatString = "";
 
-        if(query.pathname === "recipes")
+        if(query.pathname === "/recipe")
         {
             if(query.searchParams.get("sortby") === "rating")
             {
@@ -413,8 +456,13 @@ https.createServer(options, async function(request, response)
     // start server logic
     console.log("provided url is "+ request.url +'\n');
 
+    response.setHeader("Access-Control-Allow-Origin", '*');
+    response.setHeader("Access-Control-Request-Method", '*');
+    response.setHeader("Access-Control-Allow-Methods", 'GET, POST, DELETE, PUT');
+    response.setHeader("Access-Control-Allow-Headers", '*');
+
     let query = new url.URL(request.url, `https://${request.headers.host}`);
-    let dbQuery = "";
+    let dbQuery = [];
     let resultMessage = {code: 500, message: "An unexpected error occurred", content: []};
 
     console.log("Request recieved\n");
@@ -446,9 +494,9 @@ https.createServer(options, async function(request, response)
                                 {
                                     console.log("query formatted correctly\n");
                                     // if the auth code is valid, construct the dbquery
-                                    dbQuery = `SELECT userName, userPhone, userEmail FROM User where userID = ${query.searchParams.get("uid")}`;
+                                    dbQuery.push(`SELECT userName, userPhone, userEmail FROM User where userID = ${query.searchParams.get("uid")}`);
                                     // then, send the query to the database
-                                    sendQuery(dbQuery).then(sendResult);
+                                    sendQuery(dbQuery).then(sendResult).catch(sendResult);
                                 }
                                 else if (false)
                                 {
@@ -470,7 +518,7 @@ https.createServer(options, async function(request, response)
                             else if(query.searchParams.has("uemail"))
                             {
                                 // get user information based on email
-                                dbQuery = `SELECT userName, userPhone, userID FROM User WHERE userEmail = ${query.searchParams.get("uemail")};`;
+                                dbQuery.push(`SELECT userName, userPhone, userID FROM User WHERE userEmail = ${query.searchParams.get("uemail")};`);
 
                                 sendQuery(dbQuery).then(sendResult).catch(sendResult);
                             }
@@ -496,7 +544,7 @@ https.createServer(options, async function(request, response)
                                     // SELECT Ingredients_IngID, IngName, ingredientQuantity, ingredientUnit FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID WHERE Pantry.User_userID = 3 AND Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID AND Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID;
 
                                     let userID = query.searchParams.get("uid");
-                                    dbQuery = `SELECT Ingredients_IngID, IngName, ingredientQuantity, ingredientUnit FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID WHERE Pantry.User_userID = ${userID} AND Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID AND Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID;`;
+                                    dbQuery.push(`SELECT Ingredients_IngID, IngName, ingredientQuantity, ingredientUnit FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID WHERE Pantry.User_userID = ${userID} AND Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID AND Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID;`);
                                     // then, send the query to the database
                                     sendQuery(dbQuery).then(sendResult).catch(sendResult);
                                 }
@@ -542,7 +590,7 @@ https.createServer(options, async function(request, response)
                                 else
                                 {
                                     // build query
-                                    dbQuery = `SELECT * FROM DistributionSites WHERE siteCity = ${query.searchParams.has("city")}`;
+                                    dbQuery.push(`SELECT * FROM DistributionSites WHERE siteCity = ${query.searchParams.has("city")}`);
                                     // send query to database
                                     sendQuery(dbQuery).then(sendResult);
                                 }
@@ -560,7 +608,7 @@ https.createServer(options, async function(request, response)
                                 else
                                 {
                                     // build query
-                                    dbQuery = `SELECT * FROM DistributionSites WHERE siteCounty =  ${query.searchParams.get("county")}`;
+                                    dbQuery.push(`SELECT * FROM DistributionSites WHERE siteCounty =  ${query.searchParams.get("county")}`);
                                     // send query to database
                                     sendQuery(dbQuery).then(sendResult);
                                 }
@@ -578,7 +626,7 @@ https.createServer(options, async function(request, response)
                                 else
                                 {
                                     // build query
-                                    dbQuery = `SELECT * FROM DistributionSites WHERE siteState = ${query.searchParams.get("state")}`;
+                                    dbQuery.push(`SELECT * FROM DistributionSites WHERE siteState = ${query.searchParams.get("state")}`);
                                     // send query to database
                                     sendQuery(dbQuery).then(sendResult);
                                 }
@@ -596,7 +644,7 @@ https.createServer(options, async function(request, response)
                                 else
                                 {
                                     // build query
-                                    dbQuery = `SELECT * FROM DistributionSites WHERE siteZip = ${query.searchParams.get("zip")}`;
+                                    dbQuery.push(`SELECT * FROM DistributionSites WHERE siteZip = ${query.searchParams.get("zip")}`);
                                     // send query to database
                                     sendQuery(dbQuery).then(sendResult);
                                 }
@@ -618,16 +666,18 @@ https.createServer(options, async function(request, response)
                                 if(query.searchParams.get("source") === "favorite")
                                 {
                                     // if the request is for recipes a user has favorited
-                                    dbQuery = `SELECT recipeID, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes LEFT JOIN User_has_Recipes ON Recipes.recipeID = User_has_Recipes.Recipes_recipeID WHERE User_has_Recipes.User_userID = ${query.searchParams.get("uid")}`;
 
-                                    if (query.searchParams.has("sortby")) {
+                                    let queryString = `SELECT recipeID, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes LEFT JOIN User_has_Recipes ON Recipes.recipeID = User_has_Recipes.Recipes_recipeID WHERE User_has_Recipes.User_userID = ${query.searchParams.get("uid")}`
+
+                                    if (query.searchParams.has("sortby"))
+                                    {
                                         // if the query wants user favorite recipes sorted in a certain way
 
                                         let formatString = formatSortBy(query);
 
                                         if (formatString !== "")
                                         {
-                                            dbQuery.concat(formatString);
+                                            queryString.concat(formatString);
                                         }
                                         else
                                         {
@@ -643,17 +693,22 @@ https.createServer(options, async function(request, response)
                                     {
                                         let formatString = formatLimit(query);
 
-                                        dbQuery.concat(formatString);
+                                        queryString.concat(formatString);
                                     }
 
-                                    dbQuery.concat(";");
+                                    queryString.concat(";");
 
-                                    sendQuery(dbQuery).then(getRecipeData.then(sendResult)).catch(sendResult);
+                                    dbQuery.push(queryString);
+
+                                    sendQuery(dbQuery).then(async function(result)
+                                    {
+                                        await getRecipeData(result).then(sendResult).catch(sendResult)
+                                    }).catch(sendResult);
                                 }
                                 else if(query.searchParams.get("source") === "pantry")
                                 {
                                     // if the request is for recipes a user can make with their pantry contents
-                                    dbQuery = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Ingredients_has_Recipes INNER JOIN Pantry_has_Ingredients ON Ingredients_has_Recipes.Ingredients_IngID = Pantry_has_Ingredients.Ingredients_IngID INNER JOIN Recipes ON Ingredients_has_Recipes.Recipes_recipeID = Recipes.recipeID INNER JOIN Pantry on Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID WHERE Pantry.User_userID = ${query.searchParams.get("uid")};`;
+                                    let queryString = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Ingredients_has_Recipes INNER JOIN Pantry_has_Ingredients ON Ingredients_has_Recipes.Ingredients_IngID = Pantry_has_Ingredients.Ingredients_IngID INNER JOIN Recipes ON Ingredients_has_Recipes.Recipes_recipeID = Recipes.recipeID INNER JOIN Pantry on Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID WHERE Pantry.User_userID = ${query.searchParams.get("uid")};`;
 
                                     if(query.searchParams.has("sortby"))
                                     {
@@ -662,7 +717,7 @@ https.createServer(options, async function(request, response)
 
                                         if(formatString !== "")
                                         {
-                                            dbQuery.concat(formatString);
+                                            queryString.concat(formatString);
                                         }
                                         else
                                         {
@@ -674,6 +729,8 @@ https.createServer(options, async function(request, response)
                                             sendResult(resultMessage);
                                         }
                                     }
+
+                                    dbQuery.push(queryString);
 
                                     sendQuery(dbQuery).then(async function(result)
                                     {
@@ -692,46 +749,48 @@ https.createServer(options, async function(request, response)
                             else if(query.searchParams.has("searchby"))
                             {
                                 // if the query specifies a search term
-                                dbQuery = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes WHERE recipeName LIKE ${query.searchParams.get("searchby")}`;
+                                let queryString = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes WHERE recipeName LIKE ${query.searchParams.get("searchby")}`;
 
                                 if(query.searchParams.has("sortby"))
                                 {
                                     // if the query wants recipes with a specific search term returned in a certain order
                                     let formatString = formatSortBy(query);
 
-                                    dbQuery.concat(formatString);
+                                    queryString.concat(formatString);
                                 }
 
                                 if(query.searchParams.has("limit"))
                                 {
                                     let formatString = formatLimit(query);
 
-                                    dbQuery.concat(formatString);
+                                    queryString.concat(formatString);
                                 }
 
-                                dbQuery.concat(";");
+                                queryString.concat(";");
+
+                                dbQuery.push(queryString);
 
                                 sendQuery(dbQuery).then(sendResult).catch(sendResult);
                             }
-
-
                             else if(query.searchParams.has("cuisine"))
                             {
                                 // if the query wants recipes of a certain cuisine
-                                dbQuery = `SELECT recipeID, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes WHERE cuisineType = ${query.searchParams.get("cuisine")}`;
+                                let queryString = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes WHERE cuisineType = "${query.searchParams.get("cuisine")}"`;
 
                                 if(query.searchParams.has("sortby"))
                                 {
                                     // if the query wants recipes of a certain cuisine returned in a certain order
-                                    dbQuery = dbQuery.concat(formatSortBy(query));
+                                    queryString = queryString.concat(formatSortBy(query));
                                 }
 
                                 if(query.searchParams.has("limit"))
                                 {
-                                    dbQuery = dbQuery.concat(formatLimit(query));
+                                    queryString = queryString.concat(formatLimit(query));
                                 }
 
-                                dbQuery = dbQuery.concat(";");
+                                queryString = queryString.concat(";");
+
+                                dbQuery.push(queryString);
 
                                 sendQuery(dbQuery).then(sendResult).catch(sendResult);
                             }
@@ -742,20 +801,22 @@ https.createServer(options, async function(request, response)
                                 // this string will be filled with a limit optimisation if the query specifies.
                                 let limitStr = "", sortbyString = "";
 
-                                dbQuery = `SELECT recipeID, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes`;
+                                let queryString = `SELECT recipeID, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes`;
 
                                 sortbyString = formatSortBy(query);
 
                                 if(sortbyString !== "")
                                 {
-                                    dbQuery = dbQuery.concat();
+                                    queryString = queryString.concat(sortbyString);
 
                                     if(query.searchParams.has("limit"))
                                     {
                                         limitStr = " LIMIT " + query.searchParams.get("limit");
                                     }
 
-                                    dbQuery = dbQuery.concat(limitStr).concat(";");
+                                    queryString = queryString.concat(limitStr).concat(";");
+
+                                    dbQuery.push(queryString);
 
                                     sendQuery(dbQuery).then(sendResult).catch(sendResult);
                                 }
@@ -771,7 +832,9 @@ https.createServer(options, async function(request, response)
                             else if(query.searchParams.has("recipeID"))
                             {
                                 // if the query wants a specific recipe
-                                dbQuery = `SELECT recipeID, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes WHERE recipeID = ${query.searchParams.get("recipeID")}`;
+                                let queryString = `SELECT recipeID, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes WHERE recipeID = ${query.searchParams.get("recipeID")}`;
+
+                                dbQuery.push(queryString);
 
                                 sendQuery(dbQuery).then(sendResult).catch(sendResult);
                             }
@@ -790,141 +853,385 @@ https.createServer(options, async function(request, response)
                             // if request is for food boxes, check query contents
                             if(query.searchParams.has("boxname"))
                             {
-                                dbQuery = `SELECT boxID, boxName, IngName FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxName = ${query.searchParams.get("boxname")};`
+                                let queryString = "";
+
+                                if(query.searchParams.get("boxname") === '*')
+                                {
+                                    queryString = `SELECT boxID, boxName, IngName FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID;`;
+                                }
+                                else
+                                {
+                                    queryString = `SELECT boxID, boxName, IngName FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxName = ${query.searchParams.get("boxname")};`
+                                }
+
+                                dbQuery.push(queryString);
 
                                 sendQuery(dbQuery).then(sendResult);
                             }
                             else
                             {
                                 // maybe get rid of this?
-                                /*
+
                                 // if box type identifier is not present, send back 400 Bad Request
                                 resultMessage.code = 400;
                                 resultMessage.message = "Request not valid, search term invalid";
 
                                 sendResult(resultMessage);
-                                 */
-                                dbQuery = `SELECT boxID, boxName, IngName FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID;`;
                             }
                             break;
                     }
                     break;
                 case "POST":
+                    let data = "";
+
                     switch (query.pathname)
                     {
                         case "/user":
                             // CASE: adding new user
                             // query.searchParams.has("uEmail") && query.searchParams.has("uPassword") && query.searchParams.has("uName")
-                            if(query.searchParams.has("json"))
+
+                            request.on("data", function(inData)
                             {
-                                // TODO: REFACTOR TO USE JSON
+                                // when data is received, concatenate it to the data string
+                                data = data.concat(inData.toString());
+                            });
 
-                                let queryData = query.searchParams.get("json");
-
+                            request.on("end", function()
+                            {
+                                // when the data has fully sent, do everything else
                                 try
                                 {
-                                    queryData = JSON.parse(queryData);
+                                    let queryData = JSON.parse(data);
 
                                     if(queryData.hasOwnProperty("userName") && queryData.hasOwnProperty("userPassword") && queryData.hasOwnProperty("userEmail"))
                                     {
                                         // in this case, need to create a column in the user and the user_pantry table
 
                                         let colString = "(userEmail, userName, userKey";
-                                        let valString = `(${queryData.get("userEmail")}, ${queryData.get("userName")}, ${queryData.get("userPassword")}`;
+                                        let valString = `("${queryData.userEmail}", "${queryData.userName}", "${queryData.userPassword}"`;
 
                                         if(queryData.hasOwnProperty("userPhone"))
                                         {
                                             colString = colString.concat(", userPhone");
-                                            valString = valString.concat(`, ${queryData.get("userPhone")}`);
+                                            valString = valString.concat(`, "${queryData.userPhone}"`);
                                         }
 
                                         colString = colString.concat(") ");
                                         valString = valString.concat(");");
 
                                         let line1 = `INSERT INTO User ${colString} values ${valString}`;
-                                        let line2 = `INSERT INTO Pantry (User_userID) SELECT userID FROM User WHERE userEmail = ${query.searchParams.get("uEmail")};`;
+                                        let line2 = `INSERT INTO Pantry (User_userID) SELECT userID FROM User WHERE userEmail = "${queryData.userEmail}";`;
 
-                                        dbQuery = dbQuery.concat(line1).concat(line2);
+                                        dbQuery.push(line1);
+                                        dbQuery.push(line2);
 
                                         sendQuery(dbQuery).then(sendResult).catch(sendResult);
                                     }
                                     else
                                     {
-                                        // else, the request is formatted incorrectly, send back 400 Bad Request
+                                        // else, the JSON is formatted incorrectly, send back 400 Bad Request
                                         resultMessage.code = 400;
                                         resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly.";
 
                                         sendResult(resultMessage);
                                     }
-
-                                    // INSERT INTO User_has_Pantry (User_userID) SELECT User.userID FROM User where User.userEmail = "jon.p.derr@gmail.com";
-                                    // if all of the necessary fields are present
-
-                                    /*
-                                    INSERT INTO User (userName, userEmail, userKey) values ("Jon", "jon.p.derr@gmail.com", "password");
-                                    INSERT INTO User_Pantry (User_userID) SELECT userId FROM User WHERE userEmail = "jon.p.derr@gmail.com";
-                                    */
                                 }
                                 catch (err)
                                 {
                                     resultMessage.code = 500;
                                     resultMessage.message = err.message;
-                                }
-                            }
-                            else
-                            {
-                                // else, the request is formatted incorrectly, send back 400 Bad Request
-                                resultMessage.code = 400;
-                                resultMessage.message = "Request formatted incorrectly.";
 
-                                sendResult(resultMessage);
-                            }
+                                    sendResult(resultMessage);
+                                }
+                            });
                             break;
                         case "/pantry":
                             // CASE: adding new pantry contents
 
-                            /*
-                            INSERT INTO Ingredients (IngName) SELECT "Milk" FROM Ingredients WHERE NOT EXISTS (SELECT * FROM Ingredients WHERE Ingredients.IngName LIKE "Milk");
-                            INSERT INTO Pantry_has_Ingredients (Pantry_pantryID, Ingredients_IngID, ingredientQuantity, ingredientUnit) SELECT pantryID, IngID, 1, "Gallons" FROM Pantry, Ingredients WHERE Pantry.User_userID = "3" AND Ingredients.IngName LIKE "Milk";
-                             */
+                            request.on("data", function(inData)
+                            {
+                                data = data.concat(inData.toString());
+                            });
 
+                            request.on("end", function()
+                            {
+                               try
+                               {
+                                   let queryData = JSON.parse(data);
 
+                                   if(queryData.hasOwnProperty("ingName") && queryData.hasOwnProperty("ingQuantity") && queryData.hasOwnProperty("ingUnit") && queryData.hasOwnProperty("userID"))
+                                   {
+                                       let line1 = "", line2 = "";
+
+                                       line1 = `INSERT INTO Ingredients (IngName) SELECT "${queryData.ingName}" FROM Ingredients WHERE NOT EXISTS (SELECT * FROM Ingredients WHERE Ingredients.IngName LIKE "${queryData.ingName}")`;
+                                       line2 = `INSERT INTO Pantry_has_Ingredients (Pantry_pantryID, Ingredients_IngID, ingredientQuantity, ingredientUnit) SELECT pantryID, IngID, ${queryData.ingQuantity}, "${queryData.ingUnit}" FROM Pantry, Ingredients WHERE Pantry.User_userID = "${queryData.userID}" AND Ingredients.IngName LIKE "${queryData.ingName}";`
+
+                                       dbQuery.push(line1);
+                                       dbQuery.push(line2);
+
+                                       sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                   }
+                                   else
+                                   {
+                                       resultMessage.code = 400;
+                                       resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
+
+                                       sendResult(resultMessage);
+                                   }
+                               }
+                               catch(err)
+                               {
+                                   resultMessage.code = 500;
+                                   resultMessage.message = err.message;
+
+                                   sendResult(resultMessage);
+                               }
+                            });
                             break;
                         case "/recipe":
-                            if(query.searchParams.has("rName") && query.searchParams.has("rSteps") && query.searchParams.has("rIngredients"))
+                            request.on("data", function(inData)
                             {
-                                // if all of the necessary fields are present
+                                data = data.concat(inData.toString());
+                            });
 
-                                // TODO: use JSON to keep track of everything?
-                            }
-                            else
+                            request.on("end", function()
                             {
-                                // else, the request is formatted incorrectly, send back 400 Bad Request
-                                resultMessage.code = 400;
-                                resultMessage.message = "Request formatted incorrectly.";
+                                try
+                                {
+                                    let queryData = JSON.parse(data);
 
-                                sendResult(resultMessage);
-                            }
+                                    if(queryData.hasOwnProperty("recipeName"))
+                                    {
+                                        // first, create the recipe information
+                                        let line1 = "";
+
+                                        // then, send ingredient queries
+                                        let line2 = "", line3 = "";
+
+                                        // then, send the recipe instructions
+                                        let line4 = "";
+
+                                        let line1Fields = `recipeName, numRatings, recipeRating`;
+                                        let line1Values = `"${queryData.recipeName}", 0, 0.0`;
+
+                                        if(queryData.hasOwnProperty("cuisine"))
+                                        {
+                                            line1Fields = line1Fields.concat(`, cuisineType`);
+                                            line1Values = line1Values.concat(`, "${queryData.cuisine}"`);
+                                        }
+
+                                        if(queryData.hasOwnProperty("timeToMake"))
+                                        {
+                                            line1Fields = line1Fields.concat(`, timeToMake`);
+                                            line1Values = line1Values.concat(`, "${queryData.timeToMake}"`);
+                                        }
+
+                                        line1 = `INSERT INTO Recipes (${line1Fields}) VALUES (${line1Values});`;
+
+                                        dbQuery.push(line1);
+
+                                        if(queryData.hasOwnProperty("ingredients"))
+                                        {
+                                            if(queryData.ingredients.length !== 0)
+                                            {
+                                                for(let ing = 0; ing < queryData.ingredients.length; ing++)
+                                                {
+                                                    if(queryData.ingredients[ing].hasOwnProperty("ingName") && queryData.ingredients[ing].hasOwnProperty("ingQuantity") && queryData.ingredients[ing].hasOwnProperty("ingUnit"))
+                                                    {
+                                                        line2 = `INSERT INTO Ingredients (IngName) SELECT "${queryData.ingredients[ing].ingName}" FROM Ingredients WHERE NOT EXISTS (SELECT * FROM Ingredients WHERE Ingredients.IngName LIKE "${queryData.ingredients[ing].ingName}") LIMIT 1`;
+                                                        line3 = `INSERT INTO Recipe_has_Ingredients (Recipes_recipeID, Ingredients_IngID, ingredientQuantity, ingredientUnit) SELECT recipeID, IngID, ${queryData.ingredients[ing].ingQuantity}, "${queryData.ingredients[ing].ingUnit}" FROM Recipes, Ingredients WHERE Recipes.recipeName = "${queryData.recipeName}" AND Ingredients.IngName = "${queryData.ingredients[ing].ingName}";`
+
+                                                        dbQuery.push(line2);
+                                                        dbQuery.push(line3);
+                                                    }
+                                                    else
+                                                    {
+                                                        resultMessage.code = 400;
+                                                        resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
+
+                                                        sendResult(resultMessage);
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                            else
+                                            {
+                                                resultMessage.code = 400;
+                                                resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
+
+                                                sendResult(resultMessage);
+                                            }
+
+                                        }
+                                        else
+                                        {
+                                            resultMessage.code = 400;
+                                            resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
+
+                                            sendResult(resultMessage);
+                                        }
+
+                                        if(queryData.hasOwnProperty("steps"))
+                                        {
+                                            if(queryData.steps.length !== 0)
+                                            {
+                                                for(let step = 0; step < queryData.steps.length; step++)
+                                                {
+                                                    if(queryData.steps[step].hasOwnProperty("stepNum") && queryData.steps[step].hasOwnProperty("stepContent"))
+                                                    {
+                                                        line4 = `INSERT INTO recipeSteps (Recipes_recipeID, stepNum, stepContent) SELECT recipeID, ${queryData.steps[step].stepNum}, "${queryData.steps[step].stepContent}" FROM Recipes WHERE Recipes.recipeName = "${queryData.recipeName}"`;
+
+                                                        dbQuery.push(line4);
+                                                    }
+                                                    else
+                                                    {
+                                                        resultMessage.code = 400;
+                                                        resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
+
+                                                        sendResult(resultMessage);
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                            else
+                                            {
+                                                resultMessage.code = 400;
+                                                resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
+
+                                                sendResult(resultMessage);
+                                            }
+                                        }
+                                        else
+                                        {
+                                            resultMessage.code = 400;
+                                            resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
+
+                                            sendResult(resultMessage);
+                                        }
+
+                                        sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                    }
+                                    else
+                                    {
+                                        resultMessage.code = 400;
+                                        resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
+
+                                        sendResult(resultMessage);
+                                    }
+
+                                    resultMessage.code = 200;
+                                    resultMessage.message = "INSERT query successful";
+
+                                    sendResult(resultMessage);
+                                }
+                                catch (err)
+                                {
+                                    resultMessage.code = 500;
+                                    resultMessage.message = err.message;
+
+                                    sendResult(resultMessage);
+                                }
+                            });
 
                             break;
                         case "/box":
+                            // CASE: posting new food box
 
+                            let line1 = "", line2 = "", line3 = "";
+
+                            request.on("data", function(dataIn)
+                            {
+                                data = data.concat(dataIn);
+                            });
+
+                            request.on("end", function()
+                            {
+                                let queryData = JSON.parse(data);
+
+                                if(queryData.hasOwnProperty("boxName"))
+                                {
+                                    // first, create entry in box table
+                                    line1 = `INSERT INTO Boxes (boxName) VALUES ("${queryData.boxName}");`;
+
+                                    dbQuery.push(line1);
+
+                                    if(queryData.hasOwnProperty("ingredients"))
+                                    {
+                                        // for each ingredient
+                                        for(let index = 0; index < queryData.ingredients.length; index++)
+                                        {
+                                            if(queryData.ingredients[index].hasOwnProperty("ingName") && queryData.ingredients[index].hasOwnProperty("ingredientQuantity"))
+                                            {
+                                                // next, add ingredients to ingredients table
+                                                line2 = `INSERT INTO Ingredients (IngName) SELECT "${queryData.ingredients[index].ingName}" FROM Ingredients WHERE NOT EXISTS (SELECT * FROM Ingredients WHERE Ingredients.IngName LIKE "${queryData.ingredients[index].ingName}") LIMIT 1`;
+                                                dbQuery.push(line2);
+
+                                                // then, add ingredients to box_has_ingredients table
+                                                line3 = `INSERT INTO Boxes_has_Ingredients (Boxes_boxID, Ingredients_IngID, ingredientQuantity) SELECT boxID, IngID, ${queryData.ingredients[index].ingredientQuantity} FROM Boxes, Ingredients WHERE Boxes.boxName = "${queryData.boxName}" AND Ingredients.IngName = "${queryData.ingredients[index].ingName}"`;
+                                                dbQuery.push(line3);
+                                            }
+                                            else
+                                            {
+                                                resultMessage.code = 400;
+                                                resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
+
+                                                sendResult(resultMessage);
+
+                                                break;
+                                            }
+                                        }
+                                        // send queries
+                                        sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                    }
+                                    else
+                                    {
+                                        resultMessage.code = 400;
+                                        resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
+
+                                        sendResult(resultMessage);
+                                    }
+                                }
+                                else
+                                {
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
+
+                                    sendResult(resultMessage);
+                                }
+                            });
 
                             break;
                         case "/site":
-                            // CASE: posting new user site
-
-                            // definitely use JSON here
+                            // CASE: posting new distribution site
 
                             break;
                         case "/userfav":
                             // CASE: add recipe to user favorites
+                            request.on("data", function(inData)
+                            {
+                                data = data.concat(inData.toString())
+                            });
 
-                            // add to table User_has_Recipes
+                            request.on("end", function()
+                            {
+                                let queryData = JSON.parse(data);
+
+                                if(queryData.hasOwnProperty("userID") && queryData.hasOwnProperty("recipeID"))
+                                {
+                                    dbQuery = `INSERT INTO User_has_Recipes (User_userID, Recipes_recipeID) VALUES (${queryData.userID}, ${queryData.recipeID})`;
+
+                                    sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                }
+                                else
+                                {
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
+
+                                    sendResult(resultMessage);
+                                }
+                            });
                             break;
                     }
-
-
                     break;
                 case "DELETE":
                     // delete logic goes here
