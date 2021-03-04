@@ -253,7 +253,6 @@ https.createServer(options, async function(request, response)
     */
 
 
-
     /*
         Function: checkTermValid
         Arguments: pathName (String)
@@ -834,7 +833,6 @@ https.createServer(options, async function(request, response)
                     break;
                 case "POST":
                     let data = "";
-
                     switch (query.pathname) {
                         case "/user":
                             // CASE: adding new user
@@ -854,7 +852,7 @@ https.createServer(options, async function(request, response)
                                         // in this case, need to create a column in the user and the user_pantry table
 
                                         let colString = "(userEmail, userName, userKey";
-                                        let valString = `("${queryData.userEmail}", "${queryData.userName}", "${queryData.userPassword}"`;
+                                        let valString = `"${queryData.userEmail}", "${queryData.userName}", "${queryData.userPassword}"`;
 
                                         if (queryData.hasOwnProperty("userPhone")) {
                                             colString = colString.concat(", userPhone");
@@ -885,6 +883,7 @@ https.createServer(options, async function(request, response)
                                     sendResult(resultMessage);
                                 }
                             });
+
                             break;
                         case "/pantry":
                             // CASE: adding new pantry contents
@@ -920,6 +919,7 @@ https.createServer(options, async function(request, response)
                                     sendResult(resultMessage);
                                 }
                             });
+
                             break;
                         case "/recipe":
                             request.on("data", function (inData) {
@@ -1120,54 +1120,50 @@ https.createServer(options, async function(request, response)
                     }
                     break;
                 case "DELETE":
+                    console.log(`request type: DELETE, pathname is ${query.pathname} \n arguments are: ${query.searchParams.get("source")}`);
                     // delete logic goes here
                     switch (query.pathname) {
                         case "/user":
-                            // check the path name for the requested resource
-                            console.log(`request type: DELETE, pathname is ${query.pathname} \n arguments are: ${query.searchParams.get("source")}`);
-                            switch (query.pathname) {
-                                case "/user":
-                                    // if request is for user information, check query contents to make sure necessary items are present
-                                    console.log(`user case entered, query is ${query.searchParams}\n`);
+                            // if request is for user information, check query contents to make sure necessary items are present
+                            console.log(`user case entered, query is ${query.searchParams}\n`);
+                            // TODO: CHECK FOR AUTH CODE WHEN AUTH SERVER IMPLEMENTED
+                            /*&& "authcode" in query*/
+                            if (query.searchParams.has("uid")) {
+                               console.log("uid case entered\n");
+                               // first, check auth code (when auth server is ready)
+                               if (true) {
+                                  console.log("query formatted correctly\n");
+                                  // if the auth code is valid, construct the dbquery
+                                  dbQuery.push(`DELETE FROM User where userID = ${query.searchParams.get("uid")}`);
+                                  // then, send the query to the database
+                                  sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                  } else if (false) {
+                                   // else if auth code valid but permissions are wrong, return code 403 Forbidden
+                                   resultMessage.code = 403;
+                                   resultMessage.message = "Permissions not valid for this resource";
 
-                                    // TODO: CHECK FOR AUTH CODE WHEN AUTH SERVER IMPLEMENTED
-                                    /*&& "authcode" in query*/
-                                    if (query.searchParams.has("uid")) {
-                                        console.log("uid case entered\n");
-                                        // first, check auth code (when auth server is ready)
-                                        if (true) {
-                                            console.log("query formatted correctly\n");
-                                            // if the auth code is valid, construct the dbquery
-                                            dbQuery.push(`DELETE FROM User where userID = ${query.searchParams.get("uid")}`);
-                                            // then, send the query to the database
-                                            sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                        } else if (false) {
-                                            // else if auth code valid but permissions are wrong, return code 403 Forbidden
-                                            resultMessage.code = 403;
-                                            resultMessage.message = "Permissions not valid for this resource";
+                                   sendResult(resultMessage);
+                                   } else {
+                                   // else return code 401 Unauthorized
+                                   resultMessage.code = 401;
+                                   resultMessage.message = "Authorization code not valid";
 
-                                            sendResult(resultMessage);
-                                        } else {
-                                            // else return code 401 Unauthorized
-                                            resultMessage.code = 401;
-                                            resultMessage.message = "Authorization code not valid";
+                                   sendResult(resultMessage);
+                                   }
+                                } else if (query.searchParams.has("uemail")) {
+                               // get user information based on email
+                               dbQuery.push(`DELETE FROM User WHERE userEmail = ${query.searchParams.get("uemail")};`);
 
-                                            sendResult(resultMessage);
-                                        }
-                                    } else if (query.searchParams.has("uemail")) {
-                                        // get user information based on email
-                                        dbQuery.push(`DELETE FROM User WHERE userEmail = ${query.searchParams.get("uemail")};`);
+                               sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                } else {
+                                  // if either the UID or authcode are missing, send back 400 Bad Request
+                                  resultMessage.code = 400;
+                                  resultMessage.message = "Request not valid";
 
-                                        sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                    } else {
-                                        // if either the UID or authcode are missing, send back 400 Bad Request
-                                        resultMessage.code = 400;
-                                        resultMessage.message = "Request not valid";
+                                  sendResult(resultMessage);
+                                }
 
-                                        sendResult(resultMessage);
-                                    }
-
-                                    break;
+                                break;
                                 case "/pantry":
                                     if (query.searchParams.has("uid")) {
                                         // console.log("uid case entered\n");
@@ -1178,7 +1174,7 @@ https.createServer(options, async function(request, response)
                                             // DELETE  FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID WHERE Pantry.User_userID = 3 AND Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID AND Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID;
 
                                             let userID = query.searchParams.get("uid");
-                                            dbQuery.push(`DELETE FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID WHERE Pantry.User_userID = ${userID} AND Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID AND Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID;`);
+                                            dbQuery.push(`DELETE Pantry_has_Ingredients, Ingredients FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID = Pantry_has_Ingredients.Pantry_pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Pantry.User_userID = ${userID} AND Ingredients.IngID = Pantry_has_Ingredients.Ingredients_IngID ;`);
                                             // then, send the query to the database
                                             sendQuery(dbQuery).then(sendResult).catch(sendResult);
                                         } else if (false) {
@@ -1274,60 +1270,9 @@ https.createServer(options, async function(request, response)
 
                                             let queryString = `DELETE FROM Recipes LEFT JOIN User_has_Recipes ON Recipes.recipeID = User_has_Recipes.Recipes_recipeID WHERE User_has_Recipes.User_userID = ${query.searchParams.get("uid")}`
 
-                                            if (query.searchParams.has("sortby")) {
-                                                // if the query wants user favorite recipes sorted in a certain way
-
-                                                let formatString = formatSortBy(query);
-
-                                                if (formatString !== "") {
-                                                    queryString.concat(formatString);
-                                                } else {
-                                                    // else, return 400 Bad Request
-                                                    resultMessage.code = 400;
-                                                    resultMessage.message = "Request not valid, search term missing or not valid";
-
-                                                    sendResult(resultMessage);
-                                                }
-                                            }
-
-                                            if (query.searchParams.has("limit")) {
-                                                let formatString = formatLimit(query);
-
-                                                queryString.concat(formatString);
-                                            }
-
-                                            queryString.concat(";");
-
                                             dbQuery.push(queryString);
 
-                                            sendQuery(dbQuery).then(async function (result) {
-                                                await getRecipeData(result).then(sendResult).catch(sendResult)
-                                            }).catch(sendResult);
-                                        } else if (query.searchParams.get("source") === "pantry") {
-                                            // if the request is for recipes a user can make with their pantry contents
-                                            let queryString = `DELETE FROM Ingredients_has_Recipes INNER JOIN Pantry_has_Ingredients ON Ingredients_has_Recipes.Ingredients_IngID = Pantry_has_Ingredients.Ingredients_IngID INNER JOIN Recipes ON Ingredients_has_Recipes.Recipes_recipeID = Recipes.recipeID INNER JOIN Pantry on Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID WHERE Pantry.User_userID = ${query.searchParams.get("uid")};`;
-
-                                            if (query.searchParams.has("sortby")) {
-                                                // if the query wants pantry-specific recipes sorted in a certain way
-                                                let formatString = formatSortBy(query);
-
-                                                if (formatString !== "") {
-                                                    queryString.concat(formatString);
-                                                } else {
-                                                    // else, return 400 Bad Request
-
-                                                    resultMessage.code = 400;
-                                                    resultMessage.message = "Request not valid, search term missing or not valid";
-
-                                                    sendResult(resultMessage);
-                                                }
-                                            }
-
-                                            dbQuery.push(queryString);
-
-                                            sendQuery(dbQuery).then(async function (result) {
-                                                await getRecipeData(result).then(sendResult).catch(sendResult)
-                                            }).catch(sendResult);
+                                            sendQuery(dbQuery).then(sendResult).catch(sendResult);
                                         } else {
                                             // if neither case is true, send 400 Bad Request
                                             resultMessage.code = 400;
@@ -1378,10 +1323,10 @@ https.createServer(options, async function(request, response)
                                     break;
                             }
 
-                            break;
-                        case "PUT":
-                            // put logic goes here
-                            switch (query.pathname) {
+                    break;
+                case "PUT":
+                    // put logic goes here
+                    switch (query.pathname) {
                                 case "/user":
 
                                     break;
@@ -1398,9 +1343,12 @@ https.createServer(options, async function(request, response)
 
                                     break;
                             }
-                            break;
-                    }
-            }
+                    break;
+
+
+
+                }
+
         }
         else
         {
