@@ -31,8 +31,8 @@ https.createServer(options, async function(request, response)
         let dbcon = mysql.createConnection
         ({
             host: "23.254.161.117",
-            user: "admin",
-            password: "Fridgefiller2021",
+            user: "customer",
+            password: "FridgefillerCustomer",
             database: "FridgeFiller",
             debug: true,
             /*
