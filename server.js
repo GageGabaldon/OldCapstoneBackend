@@ -1268,7 +1268,7 @@ https.createServer(options, async function(request, response)
                                         if (query.searchParams.get("source") === "favorite") {
                                             // if the request is for recipes a user has favorited
 
-                                            let queryString = `DELETE FROM Recipes LEFT JOIN User_has_Recipes ON Recipes.recipeID = User_has_Recipes.Recipes_recipeID WHERE User_has_Recipes.User_userID = ${query.searchParams.get("uid")}`
+                                            let queryString = `DELETE FROM User_has_Recipes WHERE User_userID = ${query.searchParams.get("uid")}`
 
                                             dbQuery.push(queryString);
 
