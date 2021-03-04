@@ -68,14 +68,25 @@ https.createServer(options, async function(request, response)
                         }
                         else
                         {
-                            localResult.content.push(dbResult);
+                            if(dbResult.length !== 0)
+                            {
+                                localResult.content.push(dbResult);
 
-                            console.log(`Database query ${query.toString()} successful\n`);
+                                console.log(`Database query ${query.toString()} successful\n`);
+
+                                resolve(localResult);
+                            }
+                            else
+                            {
+                                // else, the query result is empty, meaning nothing was found, so send 404 Not Found
+                                localResult.code = 404;
+                                localResult.message = "The requested data item could not be found";
+
+                                reject(localResult);
+                            }
                         }
                     });
                 }
-
-                resolve(localResult);
             });
 
             queryPromise.then(function(localResult)
@@ -160,7 +171,7 @@ https.createServer(options, async function(request, response)
         Arguments: userObj, it's json file contains user's infomation
         Description: use this function to check user's information
         Return: use with checkResult functoin
-    
+
         userObj style:
         const obj= {
             "userName": " ",
@@ -222,13 +233,13 @@ https.createServer(options, async function(request, response)
             return false;
         }
     }
-    
-    
+
+
     //run example
     /*
     //call the checkToken to send user info to authenticate server
     checkToken(obj);
-    
+
     //wait for async event
     event.on('checked', function(){
         //get in function(send query, update pantry.....)
@@ -352,104 +363,119 @@ https.createServer(options, async function(request, response)
 
     /*
         Function: getRecipeData
-        Arguments: queryResult (JSON object holding the results of the query)
-        Description: This function builds a JSON object for each recipe that can be made based on a user's pantry contents
+        Arguments: queryResult (Single-element array of JSON objects holding the results of the query)
+        Description: This function builds a JSON object for each recipe in the query results
         Return: a JSON object containing complete recipe information
-
-        does this need to be async? if so, I would be better off returning a promise and using forEach/callbacks
      */
     function getRecipeData(queryResult)
     {
         console.log("getRecipeData entered");
-        let result, queryIDs = [], queryIDs_s;
-        // for result in queryResult
-        for(result in queryResult.content)
+
+        // there should only be one entry in the queryResult array, which is another array containing recipe information
+        let localQueryResult = queryResult.content[0];
+
+        if(localQueryResult.length !== 0)
         {
-            // add new fields: ingredients (array), steps (array), numSteps (int, init to 0), and numIngredients (int, init to 0)
-            queryResult.content[result].ingredients = [];
-            queryResult.content[result].steps = [];
-            queryResult.content[result].numSteps = 0;
-            queryResult.content[result].numIngredients = 0;
+            let result, queryIDs = [], queryIDs_s, querySet = [];
 
-            // push recipeID into recipeID array
-
-            if(queryResult.content[result].hasOwnProperty("recipeID"))
+            // for result in queryResult
+            for(result in localQueryResult)
             {
-                queryIDs.push(queryResult.content[result].recipeID);
-            }
-        }
+                // add new fields: ingredients (array), steps (array), numSteps (int, init to 0), and numIngredients (int, init to 0)
+                localQueryResult[result].ingredients = [];
+                localQueryResult[result].steps = [];
+                localQueryResult[result].numSteps = 0;
+                localQueryResult[result].numIngredients = 0;
 
-        console.log("queryresult modified");
-
-        // stringify recipeID array
-        queryIDs_s = `(${queryIDs.toString()})`;
-
-        // format query string for getting ingredients, use stringified recipeID array
-        let ingredientQuery = `SELECT Recipes_recipeID, IngID, IngName FROM FridgeFiller.Ingredients_has_Recipes INNER JOIN Ingredients ON Ingredients_has_Recipes.Ingredients_IngID = Ingredients.IngID WHERE Ingredients_has_Recipes.Recipes_recipeID IN ${queryIDs_s};`;
-
-        // format query string for getting steps, use stringified recipeID array
-        let stepQuery = `SELECT Recipes_recipeID, stepNum, stepContent FROM FridgeFiller.recipeSteps INNER JOIN Recipes ON recipeSteps.Recipes_recipeID = Recipes.recipeID WHERE recipeID IN ${queryIDs_s};`;
-
-        console.log("getRecipeData: entering promise");
-
-        return new Promise(async function(resolve, reject)
-        {
-            console.log("getRecipeData: promise entered");
-            // send queries, use await for each sendQuery call and store results in ingredientResult and stepResult
-            try
-            {
-                let ingredientResult = await sendQuery(ingredientQuery);
-                let stepResult = await sendQuery(stepQuery);
-                let ingValue, stepValue;
-
-                if(ingredientResult.length != 0 && stepResult.length != 0)
+                // push recipeID into recipeID array if it is present
+                if(localQueryResult[result].hasOwnProperty("recipeID"))
                 {
-                    // for result in queryResult (async)
-                    for(result in queryResult.content)
-                    {
-                        // for value in ingredientResult (NOT async)
-                        for(ingValue in ingredientResult.content)
-                        {
-                            // if recipeID in queryResult === recipeID in ingredientResult
-                            if(queryResult.content[result].recipeID === ingredientResult.content[ingValue].Recipes_recipeID)
-                            {
-                                // add ingredientResult entry at index value into queryResult.ingredients at current result index
-                                queryResult.content[result].ingredients.push(ingredientResult.content[ingValue]);
-                                queryResult.content[result].numIngredients++;
-                            }
-                        }
-
-                        // for value in stepResult (NOT async)
-                        for(stepValue in stepResult.content)
-                        {
-                            // if recipeID in queryResult === recipeID in stepResult
-                            if(queryResult.content[result].recipeID === stepResult.content[stepValue].Recipes_recipeID)
-                            {
-                                // add stepResult entry at index value into queryResult.steps
-                                queryResult.content[result].steps.push(stepResult.content[stepValue]);
-                                queryResult.content[result].numSteps++;
-                            }
-                        }
-                    }
-
-                    // return the modified queryResult object
-
-                    resolve(queryResult);
+                    queryIDs.push(localQueryResult[result].recipeID);
                 }
-                else
+            }
+
+            console.log("queryresult modified");
+
+            // stringify recipeID array
+            queryIDs_s = `(${queryIDs.toString()})`;
+
+            // format query string for getting ingredients, use stringified recipeID array
+            let ingredientQuery = `SELECT Recipes_recipeID, IngID, IngName FROM FridgeFiller.Recipe_has_Ingredients INNER JOIN Ingredients ON Recipe_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Recipe_has_Ingredients.Recipes_recipeID IN ${queryIDs_s};`;
+            querySet.push(ingredientQuery);
+
+            // format query string for getting steps, use stringified recipeID array
+            let stepQuery = `SELECT Recipes_recipeID, stepNum, stepContent FROM FridgeFiller.recipeSteps INNER JOIN Recipes ON recipeSteps.Recipes_recipeID = Recipes.recipeID WHERE recipeID IN ${queryIDs_s};`;
+            querySet.push(stepQuery);
+
+            console.log("getRecipeData: entering promise");
+
+            return new Promise(async function(resolve, reject)
+            {
+                console.log("getRecipeData: promise entered");
+                // send queries, use await for each sendQuery call and store results in ingredientResult and stepResult
+                try
                 {
+                    let queryResults = await sendQuery(querySet);
+                    let ingredientResult = queryResults.content[0];
+                    let stepResult = queryResults.content[1];
+                    let ingValue, stepValue;
+
+                    if(ingredientResult.length != 0 && stepResult.length != 0)
+                    {
+                        // for result in queryResult
+                        for(result in localQueryResult)
+                        {
+                            // for value in ingredientResult
+                            for(ingValue in ingredientResult)
+                            {
+                                // if recipeID in queryResult === recipeID in ingredientResult
+                                if(localQueryResult[result].recipeID === ingredientResult[ingValue].Recipes_recipeID)
+                                {
+                                    // add ingredientResult entry at index value into queryResult.ingredients at current result index
+                                    localQueryResult[result].ingredients.push(ingredientResult[ingValue]);
+                                    localQueryResult[result].numIngredients++;
+                                }
+                            }
+
+                            // for value in stepResult (NOT async)
+                            for(stepValue in stepResult)
+                            {
+                                // if recipeID in queryResult === recipeID in stepResult
+                                if(localQueryResult[result].recipeID === stepResult[stepValue].Recipes_recipeID)
+                                {
+                                    // add stepResult entry at index value into queryResult.steps
+                                    localQueryResult[result].steps.push(stepResult[stepValue]);
+                                    localQueryResult[result].numSteps++;
+                                }
+                            }
+                        }
+
+                        // return the modified queryResult object
+
+                        resolve(queryResult);
+                    }
+                    else
+                    {
+                        reject(queryResult);
+                    }
+                }
+                catch(err)
+                {
+                    queryResult.code = 500;
+                    queryResult.message = "Database query failed";
+
                     reject(queryResult);
                 }
-            }
-            catch(err)
-            {
-                queryResult.code = 500;
-                queryResult.message = "Database query failed";
 
-                reject(queryResult);
-            }
+            });
+        }
+        else
+        {
+            queryResult.code = 500;
+            queryResult.message = "Database query failed";
 
-        });
+            reject(queryResult);
+        }
     }
 
 
@@ -471,59 +497,46 @@ https.createServer(options, async function(request, response)
     if(validMethods.includes(request.method))
     {
         // if the method is valid, check the specified pathname to make sure it is valid
-        if(checkTermValid(query.pathname))
-        {
-            switch (request.method)
-            {
+        if(checkTermValid(query.pathname)) {
+            switch (request.method) {
                 case "GET":
                     // check the path name for the requested resource
                     console.log(`request type: GET, pathname is ${query.pathname} \n arguments are: ${query.searchParams.get("source")}`);
-                    switch (query.pathname)
-                    {
+                    switch (query.pathname) {
                         case "/user":
                             // if request is for user information, check query contents to make sure necessary items are present
                             console.log(`user case entered, query is ${query.searchParams}\n`);
 
                             // TODO: CHECK FOR AUTH CODE WHEN AUTH SERVER IMPLEMENTED
                             /*&& "authcode" in query*/
-                            if (query.searchParams.has("uid"))
-                            {
+                            if (query.searchParams.has("uid")) {
                                 console.log("uid case entered\n");
                                 // first, check auth code (when auth server is ready)
-                                if (true)
-                                {
+                                if (true) {
                                     console.log("query formatted correctly\n");
                                     // if the auth code is valid, construct the dbquery
                                     dbQuery.push(`SELECT userName, userPhone, userEmail FROM User where userID = ${query.searchParams.get("uid")}`);
                                     // then, send the query to the database
                                     sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                }
-                                else if (false)
-                                {
+                                } else if (false) {
                                     // else if auth code valid but permissions are wrong, return code 403 Forbidden
                                     resultMessage.code = 403;
                                     resultMessage.message = "Permissions not valid for this resource";
 
                                     sendResult(resultMessage);
-                                }
-                                else
-                                {
+                                } else {
                                     // else return code 401 Unauthorized
                                     resultMessage.code = 401;
                                     resultMessage.message = "Authorization code not valid";
 
                                     sendResult(resultMessage);
                                 }
-                            }
-                            else if(query.searchParams.has("uemail"))
-                            {
+                            } else if (query.searchParams.has("uemail")) {
                                 // get user information based on email
-                                dbQuery.push(`SELECT userName, userPhone, userID FROM User WHERE userEmail = ${query.searchParams.get("uemail")};`);
+                                dbQuery.push(`SELECT userName, userPhone, userID FROM User WHERE userEmail = "${query.searchParams.get("uemail")}";`);
 
                                 sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                            }
-                            else
-                            {
+                            } else {
                                 // if either the UID or authcode are missing, send back 400 Bad Request
                                 resultMessage.code = 400;
                                 resultMessage.message = "Request not valid";
@@ -533,12 +546,10 @@ https.createServer(options, async function(request, response)
 
                             break;
                         case "/pantry":
-                            if (query.searchParams.has("uid"))
-                            {
+                            if (query.searchParams.has("uid")) {
                                 // console.log("uid case entered\n");
                                 // first, check auth code (when auth server is ready)
-                                if (true)
-                                {
+                                if (true) {
                                     console.log("query formatted correctly\n");
                                     // if the auth code is valid, construct the dbQuery
                                     // SELECT Ingredients_IngID, IngName, ingredientQuantity, ingredientUnit FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID WHERE Pantry.User_userID = 3 AND Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID AND Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID;
@@ -547,26 +558,20 @@ https.createServer(options, async function(request, response)
                                     dbQuery.push(`SELECT Ingredients_IngID, IngName, ingredientQuantity, ingredientUnit FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID WHERE Pantry.User_userID = ${userID} AND Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID AND Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID;`);
                                     // then, send the query to the database
                                     sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                }
-                                else if (false)
-                                {
+                                } else if (false) {
                                     // else if auth code valid but permissions are wrong, return code 403 Forbidden
                                     resultMessage.code = 403;
                                     resultMessage.message = "Permissions not valid for this resource";
 
                                     sendResult(resultMessage);
-                                }
-                                else
-                                {
+                                } else {
                                     // else return code 401 Unauthorized
                                     resultMessage.code = 401;
                                     resultMessage.message = "Authorization code not valid";
 
                                     sendResult(resultMessage);
                                 }
-                            }
-                            else
-                            {
+                            } else {
                                 // if either the UID or authcode are missing, send back 400 Bad Request
                                 resultMessage.code = 400;
                                 resultMessage.message = "Request not valid";
@@ -577,80 +582,59 @@ https.createServer(options, async function(request, response)
                             break;
                         case "/sites":
                             // if request is for distribution sites/snap retailers, check query contents
-                            if(query.searchParams.has("city"))
-                            {
-                                if(query.searchParams.has("county") || query.searchParams.has("state") || query.searchParams.has("zip"))
-                                {
+                            if (query.searchParams.has("city")) {
+                                if (query.searchParams.has("county") || query.searchParams.has("state") || query.searchParams.has("zip")) {
                                     // multiple query terms present, send back 400 Bad Request
                                     resultMessage.code = 400;
                                     resultMessage.message = "Request not valid, multiple search terms present";
 
                                     sendResult(resultMessage);
-                                }
-                                else
-                                {
+                                } else {
                                     // build query
-                                    dbQuery.push(`SELECT * FROM DistributionSites WHERE siteCity = ${query.searchParams.has("city")}`);
+                                    dbQuery.push(`SELECT * FROM DistributionSites WHERE siteCity = "${query.searchParams.has("city")}"`);
                                     // send query to database
                                     sendQuery(dbQuery).then(sendResult);
                                 }
-                            }
-                            else if(query.searchParams.has("county"))
-                            {
-                                if(query.searchParams.has("city") || query.searchParams.has("state") || query.searchParams.has("zip"))
-                                {
+                            } else if (query.searchParams.has("county")) {
+                                if (query.searchParams.has("city") || query.searchParams.has("state") || query.searchParams.has("zip")) {
                                     // multiple query terms present, send back 400 Bad Request
                                     resultMessage.code = 400;
                                     resultMessage.message = "Request not valid, multiple search terms present";
 
                                     sendResult(resultMessage);
-                                }
-                                else
-                                {
+                                } else {
                                     // build query
-                                    dbQuery.push(`SELECT * FROM DistributionSites WHERE siteCounty =  ${query.searchParams.get("county")}`);
+                                    dbQuery.push(`SELECT * FROM DistributionSites WHERE siteCounty =  "${query.searchParams.get("county")}"`);
                                     // send query to database
                                     sendQuery(dbQuery).then(sendResult);
                                 }
-                            }
-                            else if(query.searchParams.has("state"))
-                            {
-                                if(query.searchParams.has("county") || query.searchParams.has("city") || query.searchParams.has("zip"))
-                                {
+                            } else if (query.searchParams.has("state")) {
+                                if (query.searchParams.has("county") || query.searchParams.has("city") || query.searchParams.has("zip")) {
                                     // multiple query terms present, send back 400 Bad Request
                                     resultMessage.code = 400;
                                     resultMessage.message = "Request not valid, multiple search terms present";
 
                                     sendResult(resultMessage);
-                                }
-                                else
-                                {
+                                } else {
                                     // build query
-                                    dbQuery.push(`SELECT * FROM DistributionSites WHERE siteState = ${query.searchParams.get("state")}`);
+                                    dbQuery.push(`SELECT * FROM DistributionSites WHERE siteState = "${query.searchParams.get("state")}"`);
                                     // send query to database
                                     sendQuery(dbQuery).then(sendResult);
                                 }
-                            }
-                            else if(query.searchParams.has("zip"))
-                            {
-                                if(query.searchParams.has("county") || query.searchParams.has("state") || query.searchParams.has("city"))
-                                {
+                            } else if (query.searchParams.has("zip")) {
+                                if (query.searchParams.has("county") || query.searchParams.has("state") || query.searchParams.has("city")) {
                                     // multiple query terms present, send back 400 Bad Request
                                     resultMessage.code = 400;
                                     resultMessage.message = "Request not valid, multiple search terms present";
 
                                     sendResult(resultMessage);
-                                }
-                                else
-                                {
+                                } else {
                                     // build query
                                     dbQuery.push(`SELECT * FROM DistributionSites WHERE siteZip = ${query.searchParams.get("zip")}`);
                                     // send query to database
                                     sendQuery(dbQuery).then(sendResult);
                                 }
-                            }
-                            else
-                            {
+                            } else {
                                 resultMessage.code = 400;
                                 resultMessage.message = "Request not valid, search term invalid";
 
@@ -660,27 +644,21 @@ https.createServer(options, async function(request, response)
                             break;
                         case "/recipe":
                             // if request is for recipes, check query contents
-                            if(query.searchParams.has("uid"))
-                            {
+                            if (query.searchParams.has("uid")) {
                                 // if the query wants recipes for a certain user
-                                if(query.searchParams.get("source") === "favorite")
-                                {
+                                if (query.searchParams.get("source") === "favorite") {
                                     // if the request is for recipes a user has favorited
 
-                                    let queryString = `SELECT recipeID, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes LEFT JOIN User_has_Recipes ON Recipes.recipeID = User_has_Recipes.Recipes_recipeID WHERE User_has_Recipes.User_userID = ${query.searchParams.get("uid")}`
+                                    let queryString = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes LEFT JOIN User_has_Recipes ON Recipes.recipeID = User_has_Recipes.Recipes_recipeID WHERE User_has_Recipes.User_userID = ${query.searchParams.get("uid")}`
 
-                                    if (query.searchParams.has("sortby"))
-                                    {
+                                    if (query.searchParams.has("sortby")) {
                                         // if the query wants user favorite recipes sorted in a certain way
 
                                         let formatString = formatSortBy(query);
 
-                                        if (formatString !== "")
-                                        {
+                                        if (formatString !== "") {
                                             queryString.concat(formatString);
-                                        }
-                                        else
-                                        {
+                                        } else {
                                             // else, return 400 Bad Request
                                             resultMessage.code = 400;
                                             resultMessage.message = "Request not valid, search term missing or not valid";
@@ -689,8 +667,7 @@ https.createServer(options, async function(request, response)
                                         }
                                     }
 
-                                    if (query.searchParams.has("limit"))
-                                    {
+                                    if (query.searchParams.has("limit")) {
                                         let formatString = formatLimit(query);
 
                                         queryString.concat(formatString);
@@ -700,27 +677,20 @@ https.createServer(options, async function(request, response)
 
                                     dbQuery.push(queryString);
 
-                                    sendQuery(dbQuery).then(async function(result)
-                                    {
+                                    sendQuery(dbQuery).then(async function (result) {
                                         await getRecipeData(result).then(sendResult).catch(sendResult)
                                     }).catch(sendResult);
-                                }
-                                else if(query.searchParams.get("source") === "pantry")
-                                {
+                                } else if (query.searchParams.get("source") === "pantry") {
                                     // if the request is for recipes a user can make with their pantry contents
-                                    let queryString = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Ingredients_has_Recipes INNER JOIN Pantry_has_Ingredients ON Ingredients_has_Recipes.Ingredients_IngID = Pantry_has_Ingredients.Ingredients_IngID INNER JOIN Recipes ON Ingredients_has_Recipes.Recipes_recipeID = Recipes.recipeID INNER JOIN Pantry on Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID WHERE Pantry.User_userID = ${query.searchParams.get("uid")};`;
+                                    let queryString = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Recipe_has_Ingredients INNER JOIN Pantry_has_Ingredients ON Recipe_has_Ingredients.Ingredients_IngID = Pantry_has_Ingredients.Ingredients_IngID INNER JOIN Recipes ON Recipe_has_Ingredients.Recipes_recipeID = Recipes.recipeID INNER JOIN Pantry on Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID WHERE Pantry.User_userID = ${query.searchParams.get("uid")};`;
 
-                                    if(query.searchParams.has("sortby"))
-                                    {
+                                    if (query.searchParams.has("sortby")) {
                                         // if the query wants pantry-specific recipes sorted in a certain way
                                         let formatString = formatSortBy(query);
 
-                                        if(formatString !== "")
-                                        {
+                                        if (formatString !== "") {
                                             queryString.concat(formatString);
-                                        }
-                                        else
-                                        {
+                                        } else {
                                             // else, return 400 Bad Request
 
                                             resultMessage.code = 400;
@@ -732,35 +702,28 @@ https.createServer(options, async function(request, response)
 
                                     dbQuery.push(queryString);
 
-                                    sendQuery(dbQuery).then(async function(result)
-                                    {
+                                    sendQuery(dbQuery).then(async function (result) {
                                         await getRecipeData(result).then(sendResult).catch(sendResult)
                                     }).catch(sendResult);
-                                }
-                                else
-                                {
+                                } else {
                                     // if neither case is true, send 400 Bad Request
                                     resultMessage.code = 400;
                                     resultMessage.message = "Request not valid, search term missing or not valid";
 
                                     sendResult(resultMessage);
                                 }
-                            }
-                            else if(query.searchParams.has("searchby"))
-                            {
+                            } else if (query.searchParams.has("searchby")) {
                                 // if the query specifies a search term
-                                let queryString = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes WHERE recipeName LIKE ${query.searchParams.get("searchby")}`;
+                                let queryString = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes WHERE recipeName LIKE "%${query.searchParams.get("searchby")}%"`;
 
-                                if(query.searchParams.has("sortby"))
-                                {
+                                if (query.searchParams.has("sortby")) {
                                     // if the query wants recipes with a specific search term returned in a certain order
                                     let formatString = formatSortBy(query);
 
                                     queryString.concat(formatString);
                                 }
 
-                                if(query.searchParams.has("limit"))
-                                {
+                                if (query.searchParams.has("limit")) {
                                     let formatString = formatLimit(query);
 
                                     queryString.concat(formatString);
@@ -770,21 +733,19 @@ https.createServer(options, async function(request, response)
 
                                 dbQuery.push(queryString);
 
-                                sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                            }
-                            else if(query.searchParams.has("cuisine"))
-                            {
+                                sendQuery(dbQuery).then(async function (result) {
+                                    getRecipeData(result).then(sendResult).catch(sendResult)
+                                }).catch(sendResult);
+                            } else if (query.searchParams.has("cuisine")) {
                                 // if the query wants recipes of a certain cuisine
                                 let queryString = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes WHERE cuisineType = "${query.searchParams.get("cuisine")}"`;
 
-                                if(query.searchParams.has("sortby"))
-                                {
+                                if (query.searchParams.has("sortby")) {
                                     // if the query wants recipes of a certain cuisine returned in a certain order
                                     queryString = queryString.concat(formatSortBy(query));
                                 }
 
-                                if(query.searchParams.has("limit"))
-                                {
+                                if (query.searchParams.has("limit")) {
                                     queryString = queryString.concat(formatLimit(query));
                                 }
 
@@ -792,25 +753,23 @@ https.createServer(options, async function(request, response)
 
                                 dbQuery.push(queryString);
 
-                                sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                            }
-                            else if(query.searchParams.has("sortby"))
-                            {
+                                sendQuery(dbQuery).then(async function (result) {
+                                    getRecipeData(result).then(sendResult).catch(sendResult);
+                                }).catch(sendResult);
+                            } else if (query.searchParams.has("sortby")) {
                                 // if the query wants all recipes returned in a certain order
 
                                 // this string will be filled with a limit optimisation if the query specifies.
                                 let limitStr = "", sortbyString = "";
 
-                                let queryString = `SELECT recipeID, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes`;
+                                let queryString = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes`;
 
                                 sortbyString = formatSortBy(query);
 
-                                if(sortbyString !== "")
-                                {
+                                if (sortbyString !== "") {
                                     queryString = queryString.concat(sortbyString);
 
-                                    if(query.searchParams.has("limit"))
-                                    {
+                                    if (query.searchParams.has("limit")) {
                                         limitStr = " LIMIT " + query.searchParams.get("limit");
                                     }
 
@@ -818,28 +777,26 @@ https.createServer(options, async function(request, response)
 
                                     dbQuery.push(queryString);
 
-                                    sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                }
-                                else
-                                {
+                                    sendQuery(dbQuery).then(async function (result) {
+                                        getRecipeData(result).then(sendResult).catch(sendResult)
+                                    }).catch(sendResult);
+                                } else {
                                     // else, the sort by term is invalid, return 400 bad request
                                     resultMessage.code = 400;
                                     resultMessage.message = "Request not valid, search term missing or not valid";
 
                                     sendResult(resultMessage);
                                 }
-                            }
-                            else if(query.searchParams.has("recipeID"))
-                            {
+                            } else if (query.searchParams.has("recipeID")) {
                                 // if the query wants a specific recipe
-                                let queryString = `SELECT recipeID, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes WHERE recipeID = ${query.searchParams.get("recipeID")}`;
+                                let queryString = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM Recipes WHERE recipeID = ${query.searchParams.get("recipeID")}`;
 
                                 dbQuery.push(queryString);
 
-                                sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                            }
-                            else
-                            {
+                                sendQuery(dbQuery).then(async function (result) {
+                                    getRecipeData(result).then(sendResult).catch(sendResult)
+                                }).catch(sendResult);
+                            } else {
                                 // if none of the above identifiers are present, send back 400 bad request
 
                                 resultMessage.code = 400;
@@ -851,25 +808,19 @@ https.createServer(options, async function(request, response)
                             break;
                         case "/box":
                             // if request is for food boxes, check query contents
-                            if(query.searchParams.has("boxname"))
-                            {
+                            if (query.searchParams.has("boxname")) {
                                 let queryString = "";
 
-                                if(query.searchParams.get("boxname") === '*')
-                                {
+                                if (query.searchParams.get("boxname") === '*') {
                                     queryString = `SELECT boxID, boxName, IngName FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID;`;
-                                }
-                                else
-                                {
+                                } else {
                                     queryString = `SELECT boxID, boxName, IngName FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxName = ${query.searchParams.get("boxname")};`
                                 }
 
                                 dbQuery.push(queryString);
 
                                 sendQuery(dbQuery).then(sendResult);
-                            }
-                            else
-                            {
+                            } else {
                                 // maybe get rid of this?
 
                                 // if box type identifier is not present, send back 400 Bad Request
@@ -884,34 +835,28 @@ https.createServer(options, async function(request, response)
                 case "POST":
                     let data = "";
 
-                    switch (query.pathname)
-                    {
+                    switch (query.pathname) {
                         case "/user":
                             // CASE: adding new user
                             // query.searchParams.has("uEmail") && query.searchParams.has("uPassword") && query.searchParams.has("uName")
 
-                            request.on("data", function(inData)
-                            {
+                            request.on("data", function (inData) {
                                 // when data is received, concatenate it to the data string
                                 data = data.concat(inData.toString());
                             });
 
-                            request.on("end", function()
-                            {
+                            request.on("end", function () {
                                 // when the data has fully sent, do everything else
-                                try
-                                {
+                                try {
                                     let queryData = JSON.parse(data);
 
-                                    if(queryData.hasOwnProperty("userName") && queryData.hasOwnProperty("userPassword") && queryData.hasOwnProperty("userEmail"))
-                                    {
+                                    if (queryData.hasOwnProperty("userName") && queryData.hasOwnProperty("userPassword") && queryData.hasOwnProperty("userEmail")) {
                                         // in this case, need to create a column in the user and the user_pantry table
 
                                         let colString = "(userEmail, userName, userKey";
                                         let valString = `("${queryData.userEmail}", "${queryData.userName}", "${queryData.userPassword}"`;
 
-                                        if(queryData.hasOwnProperty("userPhone"))
-                                        {
+                                        if (queryData.hasOwnProperty("userPhone")) {
                                             colString = colString.concat(", userPhone");
                                             valString = valString.concat(`, "${queryData.userPhone}"`);
                                         }
@@ -926,18 +871,14 @@ https.createServer(options, async function(request, response)
                                         dbQuery.push(line2);
 
                                         sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                    }
-                                    else
-                                    {
+                                    } else {
                                         // else, the JSON is formatted incorrectly, send back 400 Bad Request
                                         resultMessage.code = 400;
                                         resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly.";
 
                                         sendResult(resultMessage);
                                     }
-                                }
-                                catch (err)
-                                {
+                                } catch (err) {
                                     resultMessage.code = 500;
                                     resultMessage.message = err.message;
 
@@ -948,60 +889,48 @@ https.createServer(options, async function(request, response)
                         case "/pantry":
                             // CASE: adding new pantry contents
 
-                            request.on("data", function(inData)
-                            {
+                            request.on("data", function (inData) {
                                 data = data.concat(inData.toString());
                             });
 
-                            request.on("end", function()
-                            {
-                               try
-                               {
-                                   let queryData = JSON.parse(data);
+                            request.on("end", function () {
+                                try {
+                                    let queryData = JSON.parse(data);
 
-                                   if(queryData.hasOwnProperty("ingName") && queryData.hasOwnProperty("ingQuantity") && queryData.hasOwnProperty("ingUnit") && queryData.hasOwnProperty("userID"))
-                                   {
-                                       let line1 = "", line2 = "";
+                                    if (queryData.hasOwnProperty("ingName") && queryData.hasOwnProperty("ingQuantity") && queryData.hasOwnProperty("ingUnit") && queryData.hasOwnProperty("userID")) {
+                                        let line1 = "", line2 = "";
 
-                                       line1 = `INSERT INTO Ingredients (IngName) SELECT "${queryData.ingName}" FROM Ingredients WHERE NOT EXISTS (SELECT * FROM Ingredients WHERE Ingredients.IngName LIKE "${queryData.ingName}")`;
-                                       line2 = `INSERT INTO Pantry_has_Ingredients (Pantry_pantryID, Ingredients_IngID, ingredientQuantity, ingredientUnit) SELECT pantryID, IngID, ${queryData.ingQuantity}, "${queryData.ingUnit}" FROM Pantry, Ingredients WHERE Pantry.User_userID = "${queryData.userID}" AND Ingredients.IngName LIKE "${queryData.ingName}";`
+                                        line1 = `INSERT INTO Ingredients (IngName) SELECT "${queryData.ingName}" FROM Ingredients WHERE NOT EXISTS (SELECT * FROM Ingredients WHERE Ingredients.IngName LIKE "${queryData.ingName}")`;
+                                        line2 = `INSERT INTO Pantry_has_Ingredients (Pantry_pantryID, Ingredients_IngID, ingredientQuantity, ingredientUnit) SELECT pantryID, IngID, ${queryData.ingQuantity}, "${queryData.ingUnit}" FROM Pantry, Ingredients WHERE Pantry.User_userID = "${queryData.userID}" AND Ingredients.IngName LIKE "${queryData.ingName}";`
 
-                                       dbQuery.push(line1);
-                                       dbQuery.push(line2);
+                                        dbQuery.push(line1);
+                                        dbQuery.push(line2);
 
-                                       sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                   }
-                                   else
-                                   {
-                                       resultMessage.code = 400;
-                                       resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
+                                        sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                    } else {
+                                        resultMessage.code = 400;
+                                        resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
 
-                                       sendResult(resultMessage);
-                                   }
-                               }
-                               catch(err)
-                               {
-                                   resultMessage.code = 500;
-                                   resultMessage.message = err.message;
+                                        sendResult(resultMessage);
+                                    }
+                                } catch (err) {
+                                    resultMessage.code = 500;
+                                    resultMessage.message = err.message;
 
-                                   sendResult(resultMessage);
-                               }
+                                    sendResult(resultMessage);
+                                }
                             });
                             break;
                         case "/recipe":
-                            request.on("data", function(inData)
-                            {
+                            request.on("data", function (inData) {
                                 data = data.concat(inData.toString());
                             });
 
-                            request.on("end", function()
-                            {
-                                try
-                                {
+                            request.on("end", function () {
+                                try {
                                     let queryData = JSON.parse(data);
 
-                                    if(queryData.hasOwnProperty("recipeName"))
-                                    {
+                                    if (queryData.hasOwnProperty("recipeName")) {
                                         // first, create the recipe information
                                         let line1 = "";
 
@@ -1014,14 +943,12 @@ https.createServer(options, async function(request, response)
                                         let line1Fields = `recipeName, numRatings, recipeRating`;
                                         let line1Values = `"${queryData.recipeName}", 0, 0.0`;
 
-                                        if(queryData.hasOwnProperty("cuisine"))
-                                        {
+                                        if (queryData.hasOwnProperty("cuisine")) {
                                             line1Fields = line1Fields.concat(`, cuisineType`);
                                             line1Values = line1Values.concat(`, "${queryData.cuisine}"`);
                                         }
 
-                                        if(queryData.hasOwnProperty("timeToMake"))
-                                        {
+                                        if (queryData.hasOwnProperty("timeToMake")) {
                                             line1Fields = line1Fields.concat(`, timeToMake`);
                                             line1Values = line1Values.concat(`, "${queryData.timeToMake}"`);
                                         }
@@ -1030,22 +957,16 @@ https.createServer(options, async function(request, response)
 
                                         dbQuery.push(line1);
 
-                                        if(queryData.hasOwnProperty("ingredients"))
-                                        {
-                                            if(queryData.ingredients.length !== 0)
-                                            {
-                                                for(let ing = 0; ing < queryData.ingredients.length; ing++)
-                                                {
-                                                    if(queryData.ingredients[ing].hasOwnProperty("ingName") && queryData.ingredients[ing].hasOwnProperty("ingQuantity") && queryData.ingredients[ing].hasOwnProperty("ingUnit"))
-                                                    {
+                                        if (queryData.hasOwnProperty("ingredients")) {
+                                            if (queryData.ingredients.length !== 0) {
+                                                for (let ing = 0; ing < queryData.ingredients.length; ing++) {
+                                                    if (queryData.ingredients[ing].hasOwnProperty("ingName") && queryData.ingredients[ing].hasOwnProperty("ingQuantity") && queryData.ingredients[ing].hasOwnProperty("ingUnit")) {
                                                         line2 = `INSERT INTO Ingredients (IngName) SELECT "${queryData.ingredients[ing].ingName}" FROM Ingredients WHERE NOT EXISTS (SELECT * FROM Ingredients WHERE Ingredients.IngName LIKE "${queryData.ingredients[ing].ingName}") LIMIT 1`;
                                                         line3 = `INSERT INTO Recipe_has_Ingredients (Recipes_recipeID, Ingredients_IngID, ingredientQuantity, ingredientUnit) SELECT recipeID, IngID, ${queryData.ingredients[ing].ingQuantity}, "${queryData.ingredients[ing].ingUnit}" FROM Recipes, Ingredients WHERE Recipes.recipeName = "${queryData.recipeName}" AND Ingredients.IngName = "${queryData.ingredients[ing].ingName}";`
 
                                                         dbQuery.push(line2);
                                                         dbQuery.push(line3);
-                                                    }
-                                                    else
-                                                    {
+                                                    } else {
                                                         resultMessage.code = 400;
                                                         resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
 
@@ -1053,38 +974,28 @@ https.createServer(options, async function(request, response)
                                                         break;
                                                     }
                                                 }
-                                            }
-                                            else
-                                            {
+                                            } else {
                                                 resultMessage.code = 400;
                                                 resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
 
                                                 sendResult(resultMessage);
                                             }
 
-                                        }
-                                        else
-                                        {
+                                        } else {
                                             resultMessage.code = 400;
                                             resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
 
                                             sendResult(resultMessage);
                                         }
 
-                                        if(queryData.hasOwnProperty("steps"))
-                                        {
-                                            if(queryData.steps.length !== 0)
-                                            {
-                                                for(let step = 0; step < queryData.steps.length; step++)
-                                                {
-                                                    if(queryData.steps[step].hasOwnProperty("stepNum") && queryData.steps[step].hasOwnProperty("stepContent"))
-                                                    {
+                                        if (queryData.hasOwnProperty("steps")) {
+                                            if (queryData.steps.length !== 0) {
+                                                for (let step = 0; step < queryData.steps.length; step++) {
+                                                    if (queryData.steps[step].hasOwnProperty("stepNum") && queryData.steps[step].hasOwnProperty("stepContent")) {
                                                         line4 = `INSERT INTO recipeSteps (Recipes_recipeID, stepNum, stepContent) SELECT recipeID, ${queryData.steps[step].stepNum}, "${queryData.steps[step].stepContent}" FROM Recipes WHERE Recipes.recipeName = "${queryData.recipeName}"`;
 
                                                         dbQuery.push(line4);
-                                                    }
-                                                    else
-                                                    {
+                                                    } else {
                                                         resultMessage.code = 400;
                                                         resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
 
@@ -1092,17 +1003,13 @@ https.createServer(options, async function(request, response)
                                                         break;
                                                     }
                                                 }
-                                            }
-                                            else
-                                            {
+                                            } else {
                                                 resultMessage.code = 400;
                                                 resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
 
                                                 sendResult(resultMessage);
                                             }
-                                        }
-                                        else
-                                        {
+                                        } else {
                                             resultMessage.code = 400;
                                             resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
 
@@ -1110,9 +1017,7 @@ https.createServer(options, async function(request, response)
                                         }
 
                                         sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                    }
-                                    else
-                                    {
+                                    } else {
                                         resultMessage.code = 400;
                                         resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
 
@@ -1123,9 +1028,7 @@ https.createServer(options, async function(request, response)
                                     resultMessage.message = "INSERT query successful";
 
                                     sendResult(resultMessage);
-                                }
-                                catch (err)
-                                {
+                                } catch (err) {
                                     resultMessage.code = 500;
                                     resultMessage.message = err.message;
 
@@ -1139,29 +1042,23 @@ https.createServer(options, async function(request, response)
 
                             let line1 = "", line2 = "", line3 = "";
 
-                            request.on("data", function(dataIn)
-                            {
+                            request.on("data", function (dataIn) {
                                 data = data.concat(dataIn);
                             });
 
-                            request.on("end", function()
-                            {
+                            request.on("end", function () {
                                 let queryData = JSON.parse(data);
 
-                                if(queryData.hasOwnProperty("boxName"))
-                                {
+                                if (queryData.hasOwnProperty("boxName")) {
                                     // first, create entry in box table
                                     line1 = `INSERT INTO Boxes (boxName) VALUES ("${queryData.boxName}");`;
 
                                     dbQuery.push(line1);
 
-                                    if(queryData.hasOwnProperty("ingredients"))
-                                    {
+                                    if (queryData.hasOwnProperty("ingredients")) {
                                         // for each ingredient
-                                        for(let index = 0; index < queryData.ingredients.length; index++)
-                                        {
-                                            if(queryData.ingredients[index].hasOwnProperty("ingName") && queryData.ingredients[index].hasOwnProperty("ingredientQuantity"))
-                                            {
+                                        for (let index = 0; index < queryData.ingredients.length; index++) {
+                                            if (queryData.ingredients[index].hasOwnProperty("ingName") && queryData.ingredients[index].hasOwnProperty("ingredientQuantity")) {
                                                 // next, add ingredients to ingredients table
                                                 line2 = `INSERT INTO Ingredients (IngName) SELECT "${queryData.ingredients[index].ingName}" FROM Ingredients WHERE NOT EXISTS (SELECT * FROM Ingredients WHERE Ingredients.IngName LIKE "${queryData.ingredients[index].ingName}") LIMIT 1`;
                                                 dbQuery.push(line2);
@@ -1169,9 +1066,7 @@ https.createServer(options, async function(request, response)
                                                 // then, add ingredients to box_has_ingredients table
                                                 line3 = `INSERT INTO Boxes_has_Ingredients (Boxes_boxID, Ingredients_IngID, ingredientQuantity) SELECT boxID, IngID, ${queryData.ingredients[index].ingredientQuantity} FROM Boxes, Ingredients WHERE Boxes.boxName = "${queryData.boxName}" AND Ingredients.IngName = "${queryData.ingredients[index].ingName}"`;
                                                 dbQuery.push(line3);
-                                            }
-                                            else
-                                            {
+                                            } else {
                                                 resultMessage.code = 400;
                                                 resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
 
@@ -1182,17 +1077,13 @@ https.createServer(options, async function(request, response)
                                         }
                                         // send queries
                                         sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                    }
-                                    else
-                                    {
+                                    } else {
                                         resultMessage.code = 400;
                                         resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
 
                                         sendResult(resultMessage);
                                     }
-                                }
-                                else
-                                {
+                                } else {
                                     resultMessage.code = 400;
                                     resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
 
@@ -1207,23 +1098,18 @@ https.createServer(options, async function(request, response)
                             break;
                         case "/userfav":
                             // CASE: add recipe to user favorites
-                            request.on("data", function(inData)
-                            {
+                            request.on("data", function (inData) {
                                 data = data.concat(inData.toString())
                             });
 
-                            request.on("end", function()
-                            {
+                            request.on("end", function () {
                                 let queryData = JSON.parse(data);
 
-                                if(queryData.hasOwnProperty("userID") && queryData.hasOwnProperty("recipeID"))
-                                {
+                                if (queryData.hasOwnProperty("userID") && queryData.hasOwnProperty("recipeID")) {
                                     dbQuery = `INSERT INTO User_has_Recipes (User_userID, Recipes_recipeID) VALUES (${queryData.userID}, ${queryData.recipeID})`;
 
                                     sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                }
-                                else
-                                {
+                                } else {
                                     resultMessage.code = 400;
                                     resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
 
@@ -1235,353 +1121,285 @@ https.createServer(options, async function(request, response)
                     break;
                 case "DELETE":
                     // delete logic goes here
-                    switch (query.pathname)
-                    {
+                    switch (query.pathname) {
                         case "/user":
                             // check the path name for the requested resource
-                    console.log(`request type: DELETE, pathname is ${query.pathname} \n arguments are: ${query.searchParams.get("source")}`);
-                    switch (query.pathname)
-                    {
-                        case "/user":
-                            // if request is for user information, check query contents to make sure necessary items are present
-                            console.log(`user case entered, query is ${query.searchParams}\n`);
+                            console.log(`request type: DELETE, pathname is ${query.pathname} \n arguments are: ${query.searchParams.get("source")}`);
+                            switch (query.pathname) {
+                                case "/user":
+                                    // if request is for user information, check query contents to make sure necessary items are present
+                                    console.log(`user case entered, query is ${query.searchParams}\n`);
 
-                            // TODO: CHECK FOR AUTH CODE WHEN AUTH SERVER IMPLEMENTED
-                            /*&& "authcode" in query*/
-                            if (query.searchParams.has("uid"))
-                            {
-                                console.log("uid case entered\n");
-                                // first, check auth code (when auth server is ready)
-                                if (true)
-                                {
-                                    console.log("query formatted correctly\n");
-                                    // if the auth code is valid, construct the dbquery
-                                    dbQuery.push(`DELETE FROM User where userID = ${query.searchParams.get("uid")}`);
-                                    // then, send the query to the database
-                                    sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                }
-                                else if (false)
-                                {
-                                    // else if auth code valid but permissions are wrong, return code 403 Forbidden
-                                    resultMessage.code = 403;
-                                    resultMessage.message = "Permissions not valid for this resource";
+                                    // TODO: CHECK FOR AUTH CODE WHEN AUTH SERVER IMPLEMENTED
+                                    /*&& "authcode" in query*/
+                                    if (query.searchParams.has("uid")) {
+                                        console.log("uid case entered\n");
+                                        // first, check auth code (when auth server is ready)
+                                        if (true) {
+                                            console.log("query formatted correctly\n");
+                                            // if the auth code is valid, construct the dbquery
+                                            dbQuery.push(`DELETE FROM User where userID = ${query.searchParams.get("uid")}`);
+                                            // then, send the query to the database
+                                            sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                        } else if (false) {
+                                            // else if auth code valid but permissions are wrong, return code 403 Forbidden
+                                            resultMessage.code = 403;
+                                            resultMessage.message = "Permissions not valid for this resource";
 
-                                    sendResult(resultMessage);
-                                }
-                                else
-                                {
-                                    // else return code 401 Unauthorized
-                                    resultMessage.code = 401;
-                                    resultMessage.message = "Authorization code not valid";
+                                            sendResult(resultMessage);
+                                        } else {
+                                            // else return code 401 Unauthorized
+                                            resultMessage.code = 401;
+                                            resultMessage.message = "Authorization code not valid";
 
-                                    sendResult(resultMessage);
-                                }
-                            }
-                            else if(query.searchParams.has("uemail"))
-                            {
-                                // get user information based on email
-                                dbQuery.push(`DELETE FROM User WHERE userEmail = ${query.searchParams.get("uemail")};`);
-
-                                sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                            }
-                            else
-                            {
-                                // if either the UID or authcode are missing, send back 400 Bad Request
-                                resultMessage.code = 400;
-                                resultMessage.message = "Request not valid";
-
-                                sendResult(resultMessage);
-                            }
-
-                            break;
-                        case "/pantry":
-                            if (query.searchParams.has("uid"))
-                            {
-                                // console.log("uid case entered\n");
-                                // first, check auth code (when auth server is ready)
-                                if (true)
-                                {
-                                    console.log("query formatted correctly\n");
-                                    // if the auth code is valid, construct the dbQuery
-                                    // DELETE  FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID WHERE Pantry.User_userID = 3 AND Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID AND Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID;
-
-                                    let userID = query.searchParams.get("uid");
-                                    dbQuery.push(`DELETE FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID WHERE Pantry.User_userID = ${userID} AND Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID AND Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID;`);
-                                    // then, send the query to the database
-                                    sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                }
-                                else if (false)
-                                {
-                                    // else if auth code valid but permissions are wrong, return code 403 Forbidden
-                                    resultMessage.code = 403;
-                                    resultMessage.message = "Permissions not valid for this resource";
-
-                                    sendResult(resultMessage);
-                                }
-                                else
-                                {
-                                    // else return code 401 Unauthorized
-                                    resultMessage.code = 401;
-                                    resultMessage.message = "Authorization code not valid";
-
-                                    sendResult(resultMessage);
-                                }
-                            }
-                            else
-                            {
-                                // if either the UID or authcode are missing, send back 400 Bad Request
-                                resultMessage.code = 400;
-                                resultMessage.message = "Request not valid";
-
-                                sendResult(resultMessage);
-                            }
-
-                            break;
-                        case "/sites":
-                            // if request is for distribution sites/snap retailers, check query contents
-                            if(query.searchParams.has("city"))
-                            {
-                                if(query.searchParams.has("county") || query.searchParams.has("state") || query.searchParams.has("zip"))
-                                {
-                                    // multiple query terms present, send back 400 Bad Request
-                                    resultMessage.code = 400;
-                                    resultMessage.message = "Request not valid, multiple search terms present";
-
-                                    sendResult(resultMessage);
-                                }
-                                else
-                                {
-                                    // build query
-                                    dbQuery.push(`DELETE FROM DistributionSites WHERE siteCity = ${query.searchParams.has("city")}`);
-                                    // send query to database
-                                    sendQuery(dbQuery).then(sendResult);
-                                }
-                            }
-                            else if(query.searchParams.has("county"))
-                            {
-                                if(query.searchParams.has("city") || query.searchParams.has("state") || query.searchParams.has("zip"))
-                                {
-                                    // multiple query terms present, send back 400 Bad Request
-                                    resultMessage.code = 400;
-                                    resultMessage.message = "Request not valid, multiple search terms present";
-
-                                    sendResult(resultMessage);
-                                }
-                                else
-                                {
-                                    // build query
-                                    dbQuery.push(`DELETE FROM DistributionSites WHERE siteCounty =  ${query.searchParams.get("county")}`);
-                                    // send query to database
-                                    sendQuery(dbQuery).then(sendResult);
-                                }
-                            }
-                            else if(query.searchParams.has("state"))
-                            {
-                                if(query.searchParams.has("county") || query.searchParams.has("city") || query.searchParams.has("zip"))
-                                {
-                                    // multiple query terms present, send back 400 Bad Request
-                                    resultMessage.code = 400;
-                                    resultMessage.message = "Request not valid, multiple search terms present";
-
-                                    sendResult(resultMessage);
-                                }
-                                else
-                                {
-                                    // build query
-                                    dbQuery.push(`DELETE FROM DistributionSites WHERE siteState = ${query.searchParams.get("state")}`);
-                                    // send query to database
-                                    sendQuery(dbQuery).then(sendResult);
-                                }
-                            }
-                            else if(query.searchParams.has("zip"))
-                            {
-                                if(query.searchParams.has("county") || query.searchParams.has("state") || query.searchParams.has("city"))
-                                {
-                                    // multiple query terms present, send back 400 Bad Request
-                                    resultMessage.code = 400;
-                                    resultMessage.message = "Request not valid, multiple search terms present";
-
-                                    sendResult(resultMessage);
-                                }
-                                else
-                                {
-                                    // build query
-                                    dbQuery.push(`DELETE FROM DistributionSites WHERE siteZip = ${query.searchParams.get("zip")}`);
-                                    // send query to database
-                                    sendQuery(dbQuery).then(sendResult);
-                                }
-                            }
-                            else
-                            {
-                                resultMessage.code = 400;
-                                resultMessage.message = "Request not valid, search term invalid";
-
-                                sendResult(resultMessage);
-                            }
-
-                            break;
-                        case "/recipe":
-                            // if request is for recipes, check query contents
-                            if(query.searchParams.has("uid"))
-                            {
-                                // if the query wants recipes for a certain user
-                                if(query.searchParams.get("source") === "favorite")
-                                {
-                                    // if the request is for recipes a user has favorited
-
-                                    let queryString = `DELETE FROM Recipes LEFT JOIN User_has_Recipes ON Recipes.recipeID = User_has_Recipes.Recipes_recipeID WHERE User_has_Recipes.User_userID = ${query.searchParams.get("uid")}`
-
-                                    if (query.searchParams.has("sortby"))
-                                    {
-                                        // if the query wants user favorite recipes sorted in a certain way
-
-                                        let formatString = formatSortBy(query);
-
-                                        if (formatString !== "")
-                                        {
-                                            queryString.concat(formatString);
+                                            sendResult(resultMessage);
                                         }
-                                        else
-                                        {
-                                            // else, return 400 Bad Request
+                                    } else if (query.searchParams.has("uemail")) {
+                                        // get user information based on email
+                                        dbQuery.push(`DELETE FROM User WHERE userEmail = ${query.searchParams.get("uemail")};`);
+
+                                        sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                    } else {
+                                        // if either the UID or authcode are missing, send back 400 Bad Request
+                                        resultMessage.code = 400;
+                                        resultMessage.message = "Request not valid";
+
+                                        sendResult(resultMessage);
+                                    }
+
+                                    break;
+                                case "/pantry":
+                                    if (query.searchParams.has("uid")) {
+                                        // console.log("uid case entered\n");
+                                        // first, check auth code (when auth server is ready)
+                                        if (true) {
+                                            console.log("query formatted correctly\n");
+                                            // if the auth code is valid, construct the dbQuery
+                                            // DELETE  FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID WHERE Pantry.User_userID = 3 AND Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID AND Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID;
+
+                                            let userID = query.searchParams.get("uid");
+                                            dbQuery.push(`DELETE FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID WHERE Pantry.User_userID = ${userID} AND Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID AND Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID;`);
+                                            // then, send the query to the database
+                                            sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                        } else if (false) {
+                                            // else if auth code valid but permissions are wrong, return code 403 Forbidden
+                                            resultMessage.code = 403;
+                                            resultMessage.message = "Permissions not valid for this resource";
+
+                                            sendResult(resultMessage);
+                                        } else {
+                                            // else return code 401 Unauthorized
+                                            resultMessage.code = 401;
+                                            resultMessage.message = "Authorization code not valid";
+
+                                            sendResult(resultMessage);
+                                        }
+                                    } else {
+                                        // if either the UID or authcode are missing, send back 400 Bad Request
+                                        resultMessage.code = 400;
+                                        resultMessage.message = "Request not valid";
+
+                                        sendResult(resultMessage);
+                                    }
+
+                                    break;
+                                case "/sites":
+                                    // if request is for distribution sites/snap retailers, check query contents
+                                    if (query.searchParams.has("city")) {
+                                        if (query.searchParams.has("county") || query.searchParams.has("state") || query.searchParams.has("zip")) {
+                                            // multiple query terms present, send back 400 Bad Request
+                                            resultMessage.code = 400;
+                                            resultMessage.message = "Request not valid, multiple search terms present";
+
+                                            sendResult(resultMessage);
+                                        } else {
+                                            // build query
+                                            dbQuery.push(`DELETE FROM DistributionSites WHERE siteCity = ${query.searchParams.has("city")}`);
+                                            // send query to database
+                                            sendQuery(dbQuery).then(sendResult);
+                                        }
+                                    } else if (query.searchParams.has("county")) {
+                                        if (query.searchParams.has("city") || query.searchParams.has("state") || query.searchParams.has("zip")) {
+                                            // multiple query terms present, send back 400 Bad Request
+                                            resultMessage.code = 400;
+                                            resultMessage.message = "Request not valid, multiple search terms present";
+
+                                            sendResult(resultMessage);
+                                        } else {
+                                            // build query
+                                            dbQuery.push(`DELETE FROM DistributionSites WHERE siteCounty =  ${query.searchParams.get("county")}`);
+                                            // send query to database
+                                            sendQuery(dbQuery).then(sendResult);
+                                        }
+                                    } else if (query.searchParams.has("state")) {
+                                        if (query.searchParams.has("county") || query.searchParams.has("city") || query.searchParams.has("zip")) {
+                                            // multiple query terms present, send back 400 Bad Request
+                                            resultMessage.code = 400;
+                                            resultMessage.message = "Request not valid, multiple search terms present";
+
+                                            sendResult(resultMessage);
+                                        } else {
+                                            // build query
+                                            dbQuery.push(`DELETE FROM DistributionSites WHERE siteState = ${query.searchParams.get("state")}`);
+                                            // send query to database
+                                            sendQuery(dbQuery).then(sendResult);
+                                        }
+                                    } else if (query.searchParams.has("zip")) {
+                                        if (query.searchParams.has("county") || query.searchParams.has("state") || query.searchParams.has("city")) {
+                                            // multiple query terms present, send back 400 Bad Request
+                                            resultMessage.code = 400;
+                                            resultMessage.message = "Request not valid, multiple search terms present";
+
+                                            sendResult(resultMessage);
+                                        } else {
+                                            // build query
+                                            dbQuery.push(`DELETE FROM DistributionSites WHERE siteZip = ${query.searchParams.get("zip")}`);
+                                            // send query to database
+                                            sendQuery(dbQuery).then(sendResult);
+                                        }
+                                    } else {
+                                        resultMessage.code = 400;
+                                        resultMessage.message = "Request not valid, search term invalid";
+
+                                        sendResult(resultMessage);
+                                    }
+
+                                    break;
+                                case "/recipe":
+                                    // if request is for recipes, check query contents
+                                    if (query.searchParams.has("uid")) {
+                                        // if the query wants recipes for a certain user
+                                        if (query.searchParams.get("source") === "favorite") {
+                                            // if the request is for recipes a user has favorited
+
+                                            let queryString = `DELETE FROM Recipes LEFT JOIN User_has_Recipes ON Recipes.recipeID = User_has_Recipes.Recipes_recipeID WHERE User_has_Recipes.User_userID = ${query.searchParams.get("uid")}`
+
+                                            if (query.searchParams.has("sortby")) {
+                                                // if the query wants user favorite recipes sorted in a certain way
+
+                                                let formatString = formatSortBy(query);
+
+                                                if (formatString !== "") {
+                                                    queryString.concat(formatString);
+                                                } else {
+                                                    // else, return 400 Bad Request
+                                                    resultMessage.code = 400;
+                                                    resultMessage.message = "Request not valid, search term missing or not valid";
+
+                                                    sendResult(resultMessage);
+                                                }
+                                            }
+
+                                            if (query.searchParams.has("limit")) {
+                                                let formatString = formatLimit(query);
+
+                                                queryString.concat(formatString);
+                                            }
+
+                                            queryString.concat(";");
+
+                                            dbQuery.push(queryString);
+
+                                            sendQuery(dbQuery).then(async function (result) {
+                                                await getRecipeData(result).then(sendResult).catch(sendResult)
+                                            }).catch(sendResult);
+                                        } else if (query.searchParams.get("source") === "pantry") {
+                                            // if the request is for recipes a user can make with their pantry contents
+                                            let queryString = `DELETE FROM Ingredients_has_Recipes INNER JOIN Pantry_has_Ingredients ON Ingredients_has_Recipes.Ingredients_IngID = Pantry_has_Ingredients.Ingredients_IngID INNER JOIN Recipes ON Ingredients_has_Recipes.Recipes_recipeID = Recipes.recipeID INNER JOIN Pantry on Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID WHERE Pantry.User_userID = ${query.searchParams.get("uid")};`;
+
+                                            if (query.searchParams.has("sortby")) {
+                                                // if the query wants pantry-specific recipes sorted in a certain way
+                                                let formatString = formatSortBy(query);
+
+                                                if (formatString !== "") {
+                                                    queryString.concat(formatString);
+                                                } else {
+                                                    // else, return 400 Bad Request
+
+                                                    resultMessage.code = 400;
+                                                    resultMessage.message = "Request not valid, search term missing or not valid";
+
+                                                    sendResult(resultMessage);
+                                                }
+                                            }
+
+                                            dbQuery.push(queryString);
+
+                                            sendQuery(dbQuery).then(async function (result) {
+                                                await getRecipeData(result).then(sendResult).catch(sendResult)
+                                            }).catch(sendResult);
+                                        } else {
+                                            // if neither case is true, send 400 Bad Request
                                             resultMessage.code = 400;
                                             resultMessage.message = "Request not valid, search term missing or not valid";
 
                                             sendResult(resultMessage);
                                         }
+                                    } else if (query.searchParams.has("recipeID")) {
+                                        // if the query wants a specific recipe
+                                        let queryString = `DELETE FROM Recipes WHERE recipeID = ${query.searchParams.get("recipeID")}`;
+
+                                        dbQuery.push(queryString);
+
+                                        sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                    } else {
+                                        // if none of the above identifiers are present, send back 400 bad request
+
+                                        resultMessage.code = 400;
+                                        resultMessage.message = "Request not valid, search term missing or not valid";
+
+                                        sendResult(resultMessage);
                                     }
 
-                                    if (query.searchParams.has("limit"))
-                                    {
-                                        let formatString = formatLimit(query);
+                                    break;
+                                case "/box":
+                                    // if request is for food boxes, check query contents
+                                    if (query.searchParams.has("boxname")) {
+                                        let queryString = "";
 
-                                        queryString.concat(formatString);
-                                    }
-
-                                    queryString.concat(";");
-
-                                    dbQuery.push(queryString);
-
-                                    sendQuery(dbQuery).then(async function(result)
-                                    {
-                                        await getRecipeData(result).then(sendResult).catch(sendResult)
-                                    }).catch(sendResult);
-                                }
-                                else if(query.searchParams.get("source") === "pantry")
-                                {
-                                    // if the request is for recipes a user can make with their pantry contents
-                                    let queryString = `DELETE FROM Ingredients_has_Recipes INNER JOIN Pantry_has_Ingredients ON Ingredients_has_Recipes.Ingredients_IngID = Pantry_has_Ingredients.Ingredients_IngID INNER JOIN Recipes ON Ingredients_has_Recipes.Recipes_recipeID = Recipes.recipeID INNER JOIN Pantry on Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID WHERE Pantry.User_userID = ${query.searchParams.get("uid")};`;
-
-                                    if(query.searchParams.has("sortby"))
-                                    {
-                                        // if the query wants pantry-specific recipes sorted in a certain way
-                                        let formatString = formatSortBy(query);
-
-                                        if(formatString !== "")
-                                        {
-                                            queryString.concat(formatString);
+                                        if (query.searchParams.get("boxname") === '*') {
+                                            queryString = `DELETE FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID;`;
+                                        } else {
+                                            queryString = `DELETE FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxName = ${query.searchParams.get("boxname")};`
                                         }
-                                        else
-                                        {
-                                            // else, return 400 Bad Request
 
-                                            resultMessage.code = 400;
-                                            resultMessage.message = "Request not valid, search term missing or not valid";
+                                        dbQuery.push(queryString);
 
-                                            sendResult(resultMessage);
-                                        }
+                                        sendQuery(dbQuery).then(sendResult);
+                                    } else {
+                                        // maybe get rid of this?
+
+                                        // if box type identifier is not present, send back 400 Bad Request
+                                        resultMessage.code = 400;
+                                        resultMessage.message = "Request not valid, search term invalid";
+
+                                        sendResult(resultMessage);
                                     }
-
-                                    dbQuery.push(queryString);
-
-                                    sendQuery(dbQuery).then(async function(result)
-                                    {
-                                        await getRecipeData(result).then(sendResult).catch(sendResult)
-                                    }).catch(sendResult);
-                                }
-                                else
-                                {
-                                    // if neither case is true, send 400 Bad Request
-                                    resultMessage.code = 400;
-                                    resultMessage.message = "Request not valid, search term missing or not valid";
-
-                                    sendResult(resultMessage);
-                                }
-                            }
-                            else if(query.searchParams.has("recipeID"))
-                            {
-                                // if the query wants a specific recipe
-                                let queryString = `DELETE FROM Recipes WHERE recipeID = ${query.searchParams.get("recipeID")}`;
-
-                                dbQuery.push(queryString);
-
-                                sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                            }
-                            else
-                            {
-                                // if none of the above identifiers are present, send back 400 bad request
-
-                                resultMessage.code = 400;
-                                resultMessage.message = "Request not valid, search term missing or not valid";
-
-                                sendResult(resultMessage);
+                                    break;
                             }
 
                             break;
-                        case "/box":
-                            // if request is for food boxes, check query contents
-                            if(query.searchParams.has("boxname"))
-                            {
-                                let queryString = "";
+                        case "PUT":
+                            // put logic goes here
+                            switch (query.pathname) {
+                                case "/user":
 
-                                if(query.searchParams.get("boxname") === '*')
-                                {
-                                    queryString = `DELETE FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID;`;
-                                }
-                                else
-                                {
-                                    queryString = `DELETE FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxName = ${query.searchParams.get("boxname")};`
-                                }
+                                    break;
+                                case "/pantry":
 
-                                dbQuery.push(queryString);
+                                    break;
+                                case "/recipe":
 
-                                sendQuery(dbQuery).then(sendResult);
-                            }
-                            else
-                            {
-                                // maybe get rid of this?
+                                    break;
+                                case "/box":
 
-                                // if box type identifier is not present, send back 400 Bad Request
-                                resultMessage.code = 400;
-                                resultMessage.message = "Request not valid, search term invalid";
+                                    break;
+                                case "/sites":
 
-                                sendResult(resultMessage);
+                                    break;
                             }
                             break;
                     }
-
-                    break;
-                case "PUT":
-                    // put logic goes here
-                    switch (query.pathname)
-                    {
-                        case "/user":
-
-                            break;
-                        case "/pantry":
-
-                            break;
-                        case "/recipe":
-
-                            break;
-                        case "/box":
-
-                            break;
-                        case "/sites":
-
-                            break;
-                    }
-                    break;
             }
         }
         else
