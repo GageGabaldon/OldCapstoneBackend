@@ -1299,19 +1299,20 @@ https.createServer(options, async function(request, response)
                                     break;
                                 case "/box":
                                     // if request is for food boxes, check query contents
-                                    if (query.searchParams.has("boxname")) {
-                                        let queryString = "";
-
-                                        if (query.searchParams.get("boxname") === '*') {
-                                            queryString = `DELETE FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID;`;
-                                        } else {
-                                            queryString = `DELETE FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxName = ${query.searchParams.get("boxname")};`
-                                        }
+                                    if (query.searchParams.has("boxName")) {
+                                        let queryString = `DELETE Boxes, Boxes_has_Ingredients, Ingredients FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxName = ${query.searchParams.get("boxName")}; `;
 
                                         dbQuery.push(queryString);
 
-                                        sendQuery(dbQuery).then(sendResult);
-                                    } else {
+                                        sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                    } else if(query.searchParams.has("boxID")){
+                                        let queryString = `DELETE Boxes, Boxes_has_Ingredients, Ingredients FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxID = ${query.searchParams.get("boxID")}; `;
+
+                                        dbQuery.push(queryString);
+
+                                        sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                    }
+                                    else {
                                         // maybe get rid of this?
 
                                         // if box type identifier is not present, send back 400 Bad Request
