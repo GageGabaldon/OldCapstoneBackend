@@ -1266,8 +1266,7 @@ https.createServer(options, async function(request, response)
                                     if (query.searchParams.has("uid")) {
                                         // if the query wants recipes for a certain user
                                         if (query.searchParams.get("source") === "favorite") {
-                                            // if the request is for recipes a user has favorited
-
+                                            //used for customer to delete favorite recipe
                                             let queryString = `DELETE FROM User_has_Recipes WHERE User_userID = ${query.searchParams.get("uid")}`
 
                                             dbQuery.push(queryString);
@@ -1281,8 +1280,8 @@ https.createServer(options, async function(request, response)
                                             sendResult(resultMessage);
                                         }
                                     } else if (query.searchParams.has("recipeID")) {
-                                        // if the query wants a specific recipe
-                                        let queryString = `DELETE FROM Recipes WHERE recipeID = ${query.searchParams.get("recipeID")}`;
+                                        //used for admin to delete the whole recipe
+                                        let queryString = `DELETE Recipes, Recipe_has_Ingredients, recipeSteps FROM Recipes INNER JOIN Recipe_has_Ingredients ON Recipes.recipeID = Recipe_has_Ingredients.Recipes_recipeID INNER JOIN recipeSteps ON Recipes.recipeID = recipeSteps.Recipes_recipeID WHERE recipeID = ${query.searchParams.get("recipeID")}`;
 
                                         dbQuery.push(queryString);
 
