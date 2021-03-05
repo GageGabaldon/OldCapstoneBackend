@@ -68,22 +68,11 @@ https.createServer(options, async function(request, response)
                         }
                         else
                         {
-                            if(dbResult.length !== 0)
-                            {
-                                localResult.content.push(dbResult);
+                            localResult.content.push(dbResult);
 
-                                console.log(`Database query ${query.toString()} successful\n`);
+                            console.log(`Database query ${query.toString()} successful\n`);
 
-                                resolve(localResult);
-                            }
-                            else
-                            {
-                                // else, the query result is empty, meaning nothing was found, so send 404 Not Found
-                                localResult.code = 404;
-                                localResult.message = "The requested data item could not be found";
-
-                                reject(localResult);
-                            }
+                            resolve(localResult);
                         }
                     });
                 }
@@ -138,7 +127,7 @@ https.createServer(options, async function(request, response)
     */
     function sendResult(funcResult)
     {
-        console.log(`sendResult Entered, error code is ${funcResult.code}`);
+        console.log(`sendResult Entered, status code is ${funcResult.code}`);
 
         // check if an error code is present
         if(funcResult.code !== 200)
@@ -313,28 +302,6 @@ https.createServer(options, async function(request, response)
             }
         }
 
-        /*
-        else if(query.pathname === "sites")
-        {
-            if(query.searchParams.get("sortby") === "")
-            {
-                formatString = " ORDER BY recipeRating";
-            }
-            else if(query.searchParams.get("sortby") === )
-            {
-                formatString = " ORDER BY timeToMake";
-            }
-            else if(query.searchParams.get("sortby") === )
-            {
-                formatString = " ORDER BY numRatings";
-            }
-            else if(query.searchParams.get("sortby") === )
-            {
-                formatString = " ORDER BY cuisineType";
-            }
-        }
-         */
-
         return formatString;
     }
 
@@ -474,8 +441,136 @@ https.createServer(options, async function(request, response)
             queryResult.code = 500;
             queryResult.message = "Database query failed";
 
-            reject(queryResult);
+            return queryResult;
         }
+    }
+
+
+
+    /*
+        Function: addIngredients
+        Arguments: requestData (an array of JSON objects containing the data to be checked and sent)
+        Description: This function checks for existing ingredients in the Ingredients table, adds new entries if they don't exist,
+                     and then adds those entries to the respective has_Ingredients table
+        Return: a standard result object containing an status code, message, and an empty content field
+     */
+    async function addIngredients(requestData)
+    {
+        console.log("addIngredients method entered");
+
+        return new Promise(async function(resolve, reject)
+        {
+            let ingData = [], querySet = [], queryString = "";
+            let resultMessage = {code: 500, message: "An unexpected error occurred", content: []};
+
+            try
+            {
+                if(requestData.hasOwnProperty("ingredients") && (requestData.hasOwnProperty("recipeName") || requestData.hasOwnProperty("userID")))
+                {
+                    // if the requestData has an ingredients field
+                    ingData = requestData.ingredients;
+
+                    for(let index in ingData)
+                    {
+                        queryString = `SELECT * FROM Ingredients WHERE IngName LIKE "${ingData[index].ingredientName}";`;
+                        querySet.push(queryString);
+                    }
+
+                    let queryResult = await sendQuery(querySet);
+                    let queryResultContent = queryResult.content;
+                    let currIngredient;
+                    querySet = [];
+
+                    for(let index = 0; index < queryResultContent.length; index++)
+                    {
+                        currIngredient = queryResultContent[index];
+
+                        if(currIngredient.length === 0)
+                        {
+                            // if there is no entries for the specified ingredient name, insert it into the table
+                            queryString = `INSERT INTO Ingredients (IngName) VALUES ("${ingData[index].ingredientName}");`;
+
+                            querySet.push(queryString);
+                        }
+                    }
+
+                    if(querySet.length !== 0)
+                    {
+                        queryResult = await sendQuery(querySet);
+                    }
+
+                    if(queryResult.code === 200 || querySet.length !== 0)
+                    {
+                        // if everything inserted correctly
+                        let tableString = "", specFieldName = "", specFieldContent = "", searchTable = "", specSearchField = "", specSearchContent;
+
+                        querySet = [];
+
+                        if(requestData.hasOwnProperty("recipeName"))
+                        {
+                            // if the request is for the recipe table, set the table name to Recipe_has_Ingredients
+                            tableString = "Recipe_has_Ingredients";
+                            specFieldName = "Recipes_recipeID";
+                            specFieldContent = "recipeID";
+                            searchTable = "Recipes";
+                            specSearchField = "recipeName";
+                            specSearchContent = `"${requestData.recipeName}"`;
+                        }
+                        else
+                        {
+                            // else, the query is for the pantry table, set the table name to Pantry_has_Ingredients
+                            tableString = "Pantry_has_Ingredients";
+                            specFieldName = "Pantry_pantryID";
+                            specFieldContent = "pantryID";
+                            searchTable = "Pantry";
+                            specSearchField = "User_userID";
+                            specSearchContent = requestData.userID;
+                        }
+
+                        for(let index in ingData)
+                        {
+                            queryString = `INSERT INTO ${tableString} (Ingredients_IngID, ${specFieldName}, ingredientQuantity, ingredientUnit) SELECT IngID, ${specFieldContent}, ${ingData[index].ingredientQuantity}, "${ingData[index].ingredientUnit}" FROM Ingredients, ${searchTable} WHERE Ingredients.IngName LIKE "${ingData[index].ingredientName}" AND ${searchTable}.${specSearchField} = ${specSearchContent};`;
+
+                            querySet.push(queryString);
+                        }
+
+                        queryResult = await sendQuery(querySet);
+
+                        if(queryResult.code === 200)
+                        {
+                            resolve(queryResult);
+                        }
+                        else
+                        {
+                            reject(queryResult);
+                        }
+                    }
+                    else
+                    {
+                        reject(queryResult);
+                    }
+                }
+                else
+                {
+                    // else, the JSON is formatted incorrectly, return 400 Bad Request
+                    resultMessage.code = 400;
+                    resultMessage.message = "Bad Request: JSON data is missing fields or otherwise formatted incorrectly";
+
+                    reject(resultMessage);
+                }
+            }
+            catch(err)
+            {
+                // on err, return 500 Internal Server Error
+                resultMessage.code = 500;
+                resultMessage.message = `Internal Server Error: ${err.message}`;
+
+                reject(resultMessage);
+            }
+        });
+
+
+
     }
 
 
@@ -893,27 +988,26 @@ https.createServer(options, async function(request, response)
                                 data = data.concat(inData.toString());
                             });
 
-                            request.on("end", function () {
-                                try {
+                            request.on("end", function ()
+                            {
+                                try
+                                {
                                     let queryData = JSON.parse(data);
 
-                                    if (queryData.hasOwnProperty("ingName") && queryData.hasOwnProperty("ingQuantity") && queryData.hasOwnProperty("ingUnit") && queryData.hasOwnProperty("userID")) {
-                                        let line1 = "", line2 = "";
-
-                                        line1 = `INSERT INTO Ingredients (IngName) SELECT "${queryData.ingName}" FROM Ingredients WHERE NOT EXISTS (SELECT * FROM Ingredients WHERE Ingredients.IngName LIKE "${queryData.ingName}")`;
-                                        line2 = `INSERT INTO Pantry_has_Ingredients (Pantry_pantryID, Ingredients_IngID, ingredientQuantity, ingredientUnit) SELECT pantryID, IngID, ${queryData.ingQuantity}, "${queryData.ingUnit}" FROM Pantry, Ingredients WHERE Pantry.User_userID = "${queryData.userID}" AND Ingredients.IngName LIKE "${queryData.ingName}";`
-
-                                        dbQuery.push(line1);
-                                        dbQuery.push(line2);
-
-                                        sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                    } else {
+                                    if (queryData.hasOwnProperty("ingredients") && queryData.hasOwnProperty("userID"))
+                                    {
+                                        addIngredients(queryData).then(sendResult).catch(sendResult);
+                                    }
+                                    else
+                                    {
                                         resultMessage.code = 400;
                                         resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
 
                                         sendResult(resultMessage);
                                     }
-                                } catch (err) {
+                                }
+                                catch (err)
+                                {
                                     resultMessage.code = 500;
                                     resultMessage.message = err.message;
 
@@ -926,16 +1020,15 @@ https.createServer(options, async function(request, response)
                                 data = data.concat(inData.toString());
                             });
 
-                            request.on("end", function () {
+                            request.on("end", function ()
+                            {
                                 try {
                                     let queryData = JSON.parse(data);
 
-                                    if (queryData.hasOwnProperty("recipeName")) {
+                                    if (queryData.hasOwnProperty("recipeName"))
+                                    {
                                         // first, create the recipe information
                                         let line1 = "";
-
-                                        // then, send ingredient queries
-                                        let line2 = "", line3 = "";
 
                                         // then, send the recipe instructions
                                         let line4 = "";
@@ -943,12 +1036,14 @@ https.createServer(options, async function(request, response)
                                         let line1Fields = `recipeName, numRatings, recipeRating`;
                                         let line1Values = `"${queryData.recipeName}", 0, 0.0`;
 
-                                        if (queryData.hasOwnProperty("cuisine")) {
+                                        if (queryData.hasOwnProperty("cuisine"))
+                                        {
                                             line1Fields = line1Fields.concat(`, cuisineType`);
                                             line1Values = line1Values.concat(`, "${queryData.cuisine}"`);
                                         }
 
-                                        if (queryData.hasOwnProperty("timeToMake")) {
+                                        if (queryData.hasOwnProperty("timeToMake"))
+                                        {
                                             line1Fields = line1Fields.concat(`, timeToMake`);
                                             line1Values = line1Values.concat(`, "${queryData.timeToMake}"`);
                                         }
@@ -957,78 +1052,67 @@ https.createServer(options, async function(request, response)
 
                                         dbQuery.push(line1);
 
-                                        if (queryData.hasOwnProperty("ingredients")) {
-                                            if (queryData.ingredients.length !== 0) {
-                                                for (let ing = 0; ing < queryData.ingredients.length; ing++) {
-                                                    if (queryData.ingredients[ing].hasOwnProperty("ingName") && queryData.ingredients[ing].hasOwnProperty("ingQuantity") && queryData.ingredients[ing].hasOwnProperty("ingUnit")) {
-                                                        line2 = `INSERT INTO Ingredients (IngName) SELECT "${queryData.ingredients[ing].ingName}" FROM Ingredients WHERE NOT EXISTS (SELECT * FROM Ingredients WHERE Ingredients.IngName LIKE "${queryData.ingredients[ing].ingName}") LIMIT 1`;
-                                                        line3 = `INSERT INTO Recipe_has_Ingredients (Recipes_recipeID, Ingredients_IngID, ingredientQuantity, ingredientUnit) SELECT recipeID, IngID, ${queryData.ingredients[ing].ingQuantity}, "${queryData.ingredients[ing].ingUnit}" FROM Recipes, Ingredients WHERE Recipes.recipeName = "${queryData.recipeName}" AND Ingredients.IngName = "${queryData.ingredients[ing].ingName}";`
+                                        sendQuery(dbQuery).then(async function()
+                                        {
+                                            if (queryData.hasOwnProperty("ingredients") && queryData.hasOwnProperty("steps"))
+                                            {
+                                                if (queryData.ingredients.length !== 0 && queryData.steps.length !== 0)
+                                                {
+                                                    await addIngredients(queryData).then(function()
+                                                    {
+                                                        console.log("Ingredients added");
 
-                                                        dbQuery.push(line2);
-                                                        dbQuery.push(line3);
-                                                    } else {
-                                                        resultMessage.code = 400;
-                                                        resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
+                                                        dbQuery = [];
 
-                                                        sendResult(resultMessage);
-                                                        break;
-                                                    }
+                                                        for (let step = 0; step < queryData.steps.length; step++)
+                                                        {
+                                                            if (queryData.steps[step].hasOwnProperty("stepNum") && queryData.steps[step].hasOwnProperty("stepContent"))
+                                                            {
+                                                                line4 = `INSERT INTO recipeSteps (Recipes_recipeID, stepNum, stepContent) SELECT recipeID, ${queryData.steps[step].stepNum}, "${queryData.steps[step].stepContent}" FROM Recipes WHERE Recipes.recipeName = "${queryData.recipeName}"`;
+
+                                                                dbQuery.push(line4);
+                                                            }
+                                                            else
+                                                            {
+                                                                resultMessage.code = 400;
+                                                                resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
+
+                                                                sendResult(resultMessage);
+                                                                break;
+                                                            }
+                                                        }
+
+                                                        sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                                    }).catch(sendResult);
                                                 }
-                                            } else {
+                                                else
+                                                {
+                                                    resultMessage.code = 400;
+                                                    resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
+
+                                                    sendResult(resultMessage);
+                                                }
+
+                                            }
+                                            else
+                                            {
                                                 resultMessage.code = 400;
                                                 resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
 
                                                 sendResult(resultMessage);
                                             }
-
-                                        } else {
-                                            resultMessage.code = 400;
-                                            resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
-
-                                            sendResult(resultMessage);
-                                        }
-
-                                        if (queryData.hasOwnProperty("steps")) {
-                                            if (queryData.steps.length !== 0) {
-                                                for (let step = 0; step < queryData.steps.length; step++) {
-                                                    if (queryData.steps[step].hasOwnProperty("stepNum") && queryData.steps[step].hasOwnProperty("stepContent")) {
-                                                        line4 = `INSERT INTO recipeSteps (Recipes_recipeID, stepNum, stepContent) SELECT recipeID, ${queryData.steps[step].stepNum}, "${queryData.steps[step].stepContent}" FROM Recipes WHERE Recipes.recipeName = "${queryData.recipeName}"`;
-
-                                                        dbQuery.push(line4);
-                                                    } else {
-                                                        resultMessage.code = 400;
-                                                        resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
-
-                                                        sendResult(resultMessage);
-                                                        break;
-                                                    }
-                                                }
-                                            } else {
-                                                resultMessage.code = 400;
-                                                resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
-
-                                                sendResult(resultMessage);
-                                            }
-                                        } else {
-                                            resultMessage.code = 400;
-                                            resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
-
-                                            sendResult(resultMessage);
-                                        }
-
-                                        sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                    } else {
+                                        }).catch(sendResult);
+                                    }
+                                    else
+                                    {
                                         resultMessage.code = 400;
                                         resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
 
                                         sendResult(resultMessage);
                                     }
-
-                                    resultMessage.code = 200;
-                                    resultMessage.message = "INSERT query successful";
-
-                                    sendResult(resultMessage);
-                                } catch (err) {
+                                }
+                                catch (err)
+                                {
                                     resultMessage.code = 500;
                                     resultMessage.message = err.message;
 
