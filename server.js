@@ -947,7 +947,7 @@ https.createServer(options, async function(request, response)
                                         // in this case, need to create a column in the user and the user_pantry table
 
                                         let colString = "(userEmail, userName, userKey";
-                                        let valString = `"${queryData.userEmail}", "${queryData.userName}", "${queryData.userPassword}"`;
+                                        let valString = `("${queryData.userEmail}", "${queryData.userName}", "${queryData.userPassword}"`;
 
                                         if (queryData.hasOwnProperty("userPhone")) {
                                             colString = colString.concat(", userPhone");
@@ -957,7 +957,7 @@ https.createServer(options, async function(request, response)
                                         colString = colString.concat(") ");
                                         valString = valString.concat(");");
 
-                                        let line1 = `INSERT INTO User ${colString} values ${valString}`;
+                                        let line1 = `INSERT INTO User ${colString} VALUES ${valString}`;
                                         let line2 = `INSERT INTO Pantry (User_userID) SELECT userID FROM User WHERE userEmail = "${queryData.userEmail}";`;
 
                                         dbQuery.push(line1);
@@ -1248,166 +1248,167 @@ https.createServer(options, async function(request, response)
                                 }
 
                                 break;
-                                case "/pantry":
-                                    if (query.searchParams.has("uid")) {
-                                        // console.log("uid case entered\n");
-                                        // first, check auth code (when auth server is ready)
-                                        if (true) {
-                                            console.log("query formatted correctly\n");
-                                            // if the auth code is valid, construct the dbQuery
-                                            // DELETE  FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID WHERE Pantry.User_userID = 3 AND Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID AND Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID;
+                        case "/pantry":
+                            // TODO: REFACTOR TO DELETE INDIVIDUAL INGREDIENTS RATHER THAN THE ENTIRE PANTRY
+                            if (query.searchParams.has("uid")) {
+                                // console.log("uid case entered\n");
+                                // first, check auth code (when auth server is ready)
+                                if (true) {
+                                    console.log("query formatted correctly\n");
+                                    // if the auth code is valid, construct the dbQuery
+                                    // DELETE  FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID WHERE Pantry.User_userID = 3 AND Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID AND Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID;
 
-                                            let userID = query.searchParams.get("uid");
-                                            dbQuery.push(`DELETE Pantry_has_Ingredients, Ingredients FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID = Pantry_has_Ingredients.Pantry_pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Pantry.User_userID = ${userID} AND Ingredients.IngID = Pantry_has_Ingredients.Ingredients_IngID ;`);
-                                            // then, send the query to the database
-                                            sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                        } else if (false) {
-                                            // else if auth code valid but permissions are wrong, return code 403 Forbidden
-                                            resultMessage.code = 403;
-                                            resultMessage.message = "Permissions not valid for this resource";
+                                    let userID = query.searchParams.get("uid");
+                                    dbQuery.push(`DELETE Pantry_has_Ingredients, Ingredients FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID = Pantry_has_Ingredients.Pantry_pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Pantry.User_userID = ${userID} AND Ingredients.IngID = Pantry_has_Ingredients.Ingredients_IngID ;`);
+                                    // then, send the query to the database
+                                    sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                } else if (false) {
+                                    // else if auth code valid but permissions are wrong, return code 403 Forbidden
+                                    resultMessage.code = 403;
+                                    resultMessage.message = "Permissions not valid for this resource";
 
-                                            sendResult(resultMessage);
-                                        } else {
-                                            // else return code 401 Unauthorized
-                                            resultMessage.code = 401;
-                                            resultMessage.message = "Authorization code not valid";
+                                    sendResult(resultMessage);
+                                } else {
+                                    // else return code 401 Unauthorized
+                                    resultMessage.code = 401;
+                                    resultMessage.message = "Authorization code not valid";
 
-                                            sendResult(resultMessage);
-                                        }
-                                    } else {
-                                        // if either the UID or authcode are missing, send back 400 Bad Request
-                                        resultMessage.code = 400;
-                                        resultMessage.message = "Request not valid";
+                                    sendResult(resultMessage);
+                                }
+                            } else {
+                                // if either the UID or authcode are missing, send back 400 Bad Request
+                                resultMessage.code = 400;
+                                resultMessage.message = "Request not valid";
 
-                                        sendResult(resultMessage);
-                                    }
-
-                                    break;
-                                case "/sites":
-                                    // if request is for distribution sites/snap retailers, check query contents
-                                    if (query.searchParams.has("city")) {
-                                        if (query.searchParams.has("county") || query.searchParams.has("state") || query.searchParams.has("zip")) {
-                                            // multiple query terms present, send back 400 Bad Request
-                                            resultMessage.code = 400;
-                                            resultMessage.message = "Request not valid, multiple search terms present";
-
-                                            sendResult(resultMessage);
-                                        } else {
-                                            // build query
-                                            dbQuery.push(`DELETE FROM DistributionSites WHERE siteCity = ${query.searchParams.has("city")}`);
-                                            // send query to database
-                                            sendQuery(dbQuery).then(sendResult);
-                                        }
-                                    } else if (query.searchParams.has("county")) {
-                                        if (query.searchParams.has("city") || query.searchParams.has("state") || query.searchParams.has("zip")) {
-                                            // multiple query terms present, send back 400 Bad Request
-                                            resultMessage.code = 400;
-                                            resultMessage.message = "Request not valid, multiple search terms present";
-
-                                            sendResult(resultMessage);
-                                        } else {
-                                            // build query
-                                            dbQuery.push(`DELETE FROM DistributionSites WHERE siteCounty =  ${query.searchParams.get("county")}`);
-                                            // send query to database
-                                            sendQuery(dbQuery).then(sendResult);
-                                        }
-                                    } else if (query.searchParams.has("state")) {
-                                        if (query.searchParams.has("county") || query.searchParams.has("city") || query.searchParams.has("zip")) {
-                                            // multiple query terms present, send back 400 Bad Request
-                                            resultMessage.code = 400;
-                                            resultMessage.message = "Request not valid, multiple search terms present";
-
-                                            sendResult(resultMessage);
-                                        } else {
-                                            // build query
-                                            dbQuery.push(`DELETE FROM DistributionSites WHERE siteState = ${query.searchParams.get("state")}`);
-                                            // send query to database
-                                            sendQuery(dbQuery).then(sendResult);
-                                        }
-                                    } else if (query.searchParams.has("zip")) {
-                                        if (query.searchParams.has("county") || query.searchParams.has("state") || query.searchParams.has("city")) {
-                                            // multiple query terms present, send back 400 Bad Request
-                                            resultMessage.code = 400;
-                                            resultMessage.message = "Request not valid, multiple search terms present";
-
-                                            sendResult(resultMessage);
-                                        } else {
-                                            // build query
-                                            dbQuery.push(`DELETE FROM DistributionSites WHERE siteZip = ${query.searchParams.get("zip")}`);
-                                            // send query to database
-                                            sendQuery(dbQuery).then(sendResult);
-                                        }
-                                    } else {
-                                        resultMessage.code = 400;
-                                        resultMessage.message = "Request not valid, search term invalid";
-
-                                        sendResult(resultMessage);
-                                    }
-
-                                    break;
-                                case "/recipe":
-                                    // if request is for recipes, check query contents
-                                    if (query.searchParams.has("uid")) {
-                                        // if the query wants recipes for a certain user
-                                        if (query.searchParams.get("source") === "favorite") {
-                                            //used for customer to delete favorite recipe
-                                            let queryString = `DELETE FROM User_has_Recipes WHERE User_userID = ${query.searchParams.get("uid")}`
-
-                                            dbQuery.push(queryString);
-
-                                            sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                        } else {
-                                            // if neither case is true, send 400 Bad Request
-                                            resultMessage.code = 400;
-                                            resultMessage.message = "Request not valid, search term missing or not valid";
-
-                                            sendResult(resultMessage);
-                                        }
-                                    } else if (query.searchParams.has("recipeID")) {
-                                        //used for admin to delete the whole recipe
-                                        let queryString = `DELETE Recipes, Recipe_has_Ingredients, recipeSteps FROM Recipes INNER JOIN Recipe_has_Ingredients ON Recipes.recipeID = Recipe_has_Ingredients.Recipes_recipeID INNER JOIN recipeSteps ON Recipes.recipeID = recipeSteps.Recipes_recipeID WHERE recipeID = ${query.searchParams.get("recipeID")}`;
-
-                                        dbQuery.push(queryString);
-
-                                        sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                    } else {
-                                        // if none of the above identifiers are present, send back 400 bad request
-
-                                        resultMessage.code = 400;
-                                        resultMessage.message = "Request not valid, search term missing or not valid";
-
-                                        sendResult(resultMessage);
-                                    }
-
-                                    break;
-                                case "/box":
-                                    // if request is for food boxes, check query contents
-                                    if (query.searchParams.has("boxName")) {
-                                        let queryString = `DELETE Boxes, Boxes_has_Ingredients, Ingredients FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxName = ${query.searchParams.get("boxName")}; `;
-
-                                        dbQuery.push(queryString);
-
-                                        sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                    } else if(query.searchParams.has("boxID")){
-                                        let queryString = `DELETE Boxes, Boxes_has_Ingredients, Ingredients FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxID = ${query.searchParams.get("boxID")}; `;
-
-                                        dbQuery.push(queryString);
-
-                                        sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                    }
-                                    else {
-                                        // maybe get rid of this?
-
-                                        // if box type identifier is not present, send back 400 Bad Request
-                                        resultMessage.code = 400;
-                                        resultMessage.message = "Request not valid, search term invalid";
-
-                                        sendResult(resultMessage);
-                                    }
-                                    break;
+                                sendResult(resultMessage);
                             }
 
-                    break;
+                            break;
+                        case "/sites":
+                            // if request is for distribution sites/snap retailers, check query contents
+                            if (query.searchParams.has("city")) {
+                                if (query.searchParams.has("county") || query.searchParams.has("state") || query.searchParams.has("zip")) {
+                                    // multiple query terms present, send back 400 Bad Request
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Request not valid, multiple search terms present";
+
+                                    sendResult(resultMessage);
+                                } else {
+                                    // build query
+                                    dbQuery.push(`DELETE FROM DistributionSites WHERE siteCity = ${query.searchParams.has("city")}`);
+                                    // send query to database
+                                    sendQuery(dbQuery).then(sendResult);
+                                }
+                            } else if (query.searchParams.has("county")) {
+                                if (query.searchParams.has("city") || query.searchParams.has("state") || query.searchParams.has("zip")) {
+                                    // multiple query terms present, send back 400 Bad Request
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Request not valid, multiple search terms present";
+
+                                    sendResult(resultMessage);
+                                } else {
+                                    // build query
+                                    dbQuery.push(`DELETE FROM DistributionSites WHERE siteCounty =  ${query.searchParams.get("county")}`);
+                                    // send query to database
+                                    sendQuery(dbQuery).then(sendResult);
+                                }
+                            } else if (query.searchParams.has("state")) {
+                                if (query.searchParams.has("county") || query.searchParams.has("city") || query.searchParams.has("zip")) {
+                                    // multiple query terms present, send back 400 Bad Request
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Request not valid, multiple search terms present";
+
+                                    sendResult(resultMessage);
+                                } else {
+                                    // build query
+                                    dbQuery.push(`DELETE FROM DistributionSites WHERE siteState = ${query.searchParams.get("state")}`);
+                                    // send query to database
+                                    sendQuery(dbQuery).then(sendResult);
+                                }
+                            } else if (query.searchParams.has("zip")) {
+                                if (query.searchParams.has("county") || query.searchParams.has("state") || query.searchParams.has("city")) {
+                                    // multiple query terms present, send back 400 Bad Request
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Request not valid, multiple search terms present";
+
+                                    sendResult(resultMessage);
+                                } else {
+                                    // build query
+                                    dbQuery.push(`DELETE FROM DistributionSites WHERE siteZip = ${query.searchParams.get("zip")}`);
+                                    // send query to database
+                                    sendQuery(dbQuery).then(sendResult);
+                                }
+                            } else {
+                                resultMessage.code = 400;
+                                resultMessage.message = "Request not valid, search term invalid";
+
+                                sendResult(resultMessage);
+                            }
+
+                            break;
+                        case "/recipe":
+                            // if request is for recipes, check query contents
+                            if (query.searchParams.has("uid")) {
+                                // if the query wants recipes for a certain user
+                                if (query.searchParams.get("source") === "favorite") {
+                                    //used for customer to delete favorite recipe
+                                    let queryString = `DELETE FROM User_has_Recipes WHERE User_userID = ${query.searchParams.get("uid")}`
+
+                                    dbQuery.push(queryString);
+
+                                    sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                } else {
+                                    // if neither case is true, send 400 Bad Request
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Request not valid, search term missing or not valid";
+
+                                    sendResult(resultMessage);
+                                }
+                            } else if (query.searchParams.has("recipeID")) {
+                                //used for admin to delete the whole recipe
+                                let queryString = `DELETE Recipes, Recipe_has_Ingredients, recipeSteps FROM Recipes INNER JOIN Recipe_has_Ingredients ON Recipes.recipeID = Recipe_has_Ingredients.Recipes_recipeID INNER JOIN recipeSteps ON Recipes.recipeID = recipeSteps.Recipes_recipeID WHERE recipeID = ${query.searchParams.get("recipeID")}`;
+
+                                dbQuery.push(queryString);
+
+                                sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                            } else {
+                                // if none of the above identifiers are present, send back 400 bad request
+
+                                resultMessage.code = 400;
+                                resultMessage.message = "Request not valid, search term missing or not valid";
+
+                                sendResult(resultMessage);
+                            }
+
+                            break;
+                        case "/box":
+                            // if request is for food boxes, check query contents
+                            if (query.searchParams.has("boxName")) {
+                                let queryString = `DELETE Boxes, Boxes_has_Ingredients, Ingredients FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxName = ${query.searchParams.get("boxName")}; `;
+
+                                dbQuery.push(queryString);
+
+                                sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                            } else if(query.searchParams.has("boxID")){
+                                let queryString = `DELETE Boxes, Boxes_has_Ingredients, Ingredients FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxID = ${query.searchParams.get("boxID")}; `;
+
+                                dbQuery.push(queryString);
+
+                                sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                            }
+                            else {
+                                // maybe get rid of this?
+
+                                // if box type identifier is not present, send back 400 Bad Request
+                                resultMessage.code = 400;
+                                resultMessage.message = "Request not valid, search term invalid";
+
+                                sendResult(resultMessage);
+                            }
+                            break;
+                        }
+
+                        break;
                 case "PUT":
                     // put logic goes here
                     switch (query.pathname) {
