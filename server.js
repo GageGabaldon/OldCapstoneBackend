@@ -1218,7 +1218,7 @@ https.createServer(options, async function(request, response)
                                if (true) {
                                   console.log("query formatted correctly\n");
                                   // if the auth code is valid, construct the dbquery
-                                  dbQuery.push(`DELETE FROM User where userID = ${query.searchParams.get("uid")}`);
+                                  dbQuery.push(`DELETE FROM User where userID = ${query.searchParams.get("uid")};`);
                                   // then, send the query to the database
                                   sendQuery(dbQuery).then(sendResult).catch(sendResult);
                                   } else if (false) {
@@ -1254,8 +1254,6 @@ https.createServer(options, async function(request, response)
                                         // first, check auth code (when auth server is ready)
                                         if (true) {
                                             console.log("query formatted correctly\n");
-                                            // if the auth code is valid, construct the dbQuery
-                                            // DELETE  FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID WHERE Pantry.User_userID = 3 AND Pantry_has_Ingredients.Pantry_pantryID = Pantry.pantryID AND Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID;
 
                                             let userID = query.searchParams.get("uid");
                                             dbQuery.push(`DELETE Pantry_has_Ingredients, Ingredients FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID = Pantry_has_Ingredients.Pantry_pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Pantry.User_userID = ${userID} AND Ingredients.IngID = Pantry_has_Ingredients.Ingredients_IngID ;`);
@@ -1274,7 +1272,28 @@ https.createServer(options, async function(request, response)
 
                                             sendResult(resultMessage);
                                         }
-                                    } else {
+                                    } else if(query.searchParams.has("IngName")){
+                                    	if (true) {
+                                            console.log("query formatted correctly\n");
+
+                                            dbQuery.push(`DELETE FROM Ingredients WHERE IngName = ${query.searchParams.get("IngName")};`);
+                                            // then, send the query to the database
+                                            sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                        } else if (false) {
+                                            // else if auth code valid but permissions are wrong, return code 403 Forbidden
+                                            resultMessage.code = 403;
+                                            resultMessage.message = "Permissions not valid for this resource";
+
+                                            sendResult(resultMessage);
+                                        } else {
+                                            // else return code 401 Unauthorized
+                                            resultMessage.code = 401;
+                                            resultMessage.message = "Authorization code not valid";
+
+                                            sendResult(resultMessage);
+                                        }
+
+                                    }else {
                                         // if either the UID or authcode are missing, send back 400 Bad Request
                                         resultMessage.code = 400;
                                         resultMessage.message = "Request not valid";
@@ -1284,59 +1303,25 @@ https.createServer(options, async function(request, response)
 
                                     break;
                                 case "/sites":
-                                    // if request is for distribution sites/snap retailers, check query contents
-                                    if (query.searchParams.has("city")) {
-                                        if (query.searchParams.has("county") || query.searchParams.has("state") || query.searchParams.has("zip")) {
-                                            // multiple query terms present, send back 400 Bad Request
-                                            resultMessage.code = 400;
-                                            resultMessage.message = "Request not valid, multiple search terms present";
+                                    if (query.searchParams.has("siteName")) {
+                                        if (true) {
+                                        	console.log("query formatted correctly\n");
+                                            
+                                            dbQuery.push(`DELETE FROM DistributionSites WHERE siteName = ${query.searchParams.get("siteName")};`);
+                                        } else if (false) {
+                                            // else if auth code valid but permissions are wrong, return code 403 Forbidden
+                                            resultMessage.code = 403;
+                                            resultMessage.message = "Permissions not valid for this resource";
 
                                             sendResult(resultMessage);
                                         } else {
-                                            // build query
-                                            dbQuery.push(`DELETE FROM DistributionSites WHERE siteCity = ${query.searchParams.has("city")}`);
-                                            // send query to database
-                                            sendQuery(dbQuery).then(sendResult);
-                                        }
-                                    } else if (query.searchParams.has("county")) {
-                                        if (query.searchParams.has("city") || query.searchParams.has("state") || query.searchParams.has("zip")) {
-                                            // multiple query terms present, send back 400 Bad Request
-                                            resultMessage.code = 400;
-                                            resultMessage.message = "Request not valid, multiple search terms present";
+                                            // else return code 401 Unauthorized
+                                            resultMessage.code = 401;
+                                            resultMessage.message = "Authorization code not valid";
 
                                             sendResult(resultMessage);
-                                        } else {
-                                            // build query
-                                            dbQuery.push(`DELETE FROM DistributionSites WHERE siteCounty =  ${query.searchParams.get("county")}`);
-                                            // send query to database
-                                            sendQuery(dbQuery).then(sendResult);
                                         }
-                                    } else if (query.searchParams.has("state")) {
-                                        if (query.searchParams.has("county") || query.searchParams.has("city") || query.searchParams.has("zip")) {
-                                            // multiple query terms present, send back 400 Bad Request
-                                            resultMessage.code = 400;
-                                            resultMessage.message = "Request not valid, multiple search terms present";
-
-                                            sendResult(resultMessage);
-                                        } else {
-                                            // build query
-                                            dbQuery.push(`DELETE FROM DistributionSites WHERE siteState = ${query.searchParams.get("state")}`);
-                                            // send query to database
-                                            sendQuery(dbQuery).then(sendResult);
-                                        }
-                                    } else if (query.searchParams.has("zip")) {
-                                        if (query.searchParams.has("county") || query.searchParams.has("state") || query.searchParams.has("city")) {
-                                            // multiple query terms present, send back 400 Bad Request
-                                            resultMessage.code = 400;
-                                            resultMessage.message = "Request not valid, multiple search terms present";
-
-                                            sendResult(resultMessage);
-                                        } else {
-                                            // build query
-                                            dbQuery.push(`DELETE FROM DistributionSites WHERE siteZip = ${query.searchParams.get("zip")}`);
-                                            // send query to database
-                                            sendQuery(dbQuery).then(sendResult);
-                                        }
+                                   
                                     } else {
                                         resultMessage.code = 400;
                                         resultMessage.message = "Request not valid, search term invalid";
