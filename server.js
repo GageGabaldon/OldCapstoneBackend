@@ -1218,7 +1218,7 @@ https.createServer(options, async function(request, response)
                                if (true) {
                                   console.log("query formatted correctly\n");
                                   // if the auth code is valid, construct the dbquery
-                                  dbQuery.push(`DELETE FROM User where userID = ${query.searchParams.get("uid")}`);
+                                  dbQuery.push(`DELETE FROM User where userID = ${query.searchParams.get("uid")};`);
                                   // then, send the query to the database
                                   sendQuery(dbQuery).then(sendResult).catch(sendResult);
                                   } else if (false) {
@@ -1248,6 +1248,7 @@ https.createServer(options, async function(request, response)
                                 }
 
                                 break;
+
                         case "/pantry":
                             // TODO: REFACTOR TO DELETE INDIVIDUAL INGREDIENTS RATHER THAN THE ENTIRE PANTRY
                             if (query.searchParams.has("uid")) {
@@ -1267,6 +1268,7 @@ https.createServer(options, async function(request, response)
                                     resultMessage.code = 403;
                                     resultMessage.message = "Permissions not valid for this resource";
 
+
                                     sendResult(resultMessage);
                                 } else {
                                     // else return code 401 Unauthorized
@@ -1279,6 +1281,7 @@ https.createServer(options, async function(request, response)
                                 // if either the UID or authcode are missing, send back 400 Bad Request
                                 resultMessage.code = 400;
                                 resultMessage.message = "Request not valid";
+
 
                                 sendResult(resultMessage);
                             }
