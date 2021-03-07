@@ -141,10 +141,7 @@ https.createServer(options, async function(request, response)
         {
             response.writeHead(200, "Database query successful");
 
-            for(let index = 0; index < funcResult.content.length; index++)
-            {
-                response.write(JSON.stringify(funcResult.content[index]));
-            }
+            response.write(JSON.stringify(funcResult.content));
 
             response.end();
             console.log("No error encountered, response written\n");
@@ -268,8 +265,6 @@ https.createServer(options, async function(request, response)
 
 
 
-    // TODO: EXPAND THIS FUNCTION SO IT CAN BE USED BY MORE THAN THE RECIPE TABLE
-    // do this by checking the resource name at query.pathname, have cases for each
     /*
         Function: formatSortBy
         Arguments: query (query object from parsed URL)
@@ -567,9 +562,6 @@ https.createServer(options, async function(request, response)
                 reject(resultMessage);
             }
         });
-
-
-
     }
 
 
@@ -591,7 +583,10 @@ https.createServer(options, async function(request, response)
     if(validMethods.includes(request.method))
     {
         // if the method is valid, check the specified pathname to make sure it is valid
-        if(checkTermValid(query.pathname)) {
+        if(checkTermValid(query.pathname))
+        {
+            let data = "";
+
             switch (request.method) {
                 case "GET":
                     // check the path name for the requested resource
@@ -626,6 +621,7 @@ https.createServer(options, async function(request, response)
                                     sendResult(resultMessage);
                                 }
                             } else if (query.searchParams.has("uemail")) {
+                                // todo: get password for user case
                                 // get user information based on email
                                 dbQuery.push(`SELECT userName, userPhone, userID FROM User WHERE userEmail = "${query.searchParams.get("uemail")}";`);
 
@@ -927,7 +923,7 @@ https.createServer(options, async function(request, response)
                     }
                     break;
                 case "POST":
-                    let data = "";
+
                     switch (query.pathname) {
                         case "/user":
                             // CASE: adding new user
@@ -1356,7 +1352,7 @@ https.createServer(options, async function(request, response)
                                 // if the query wants recipes for a certain user
                                 if (query.searchParams.get("source") === "favorite") {
                                     //used for customer to delete favorite recipe
-                                    let queryString = `DELETE FROM User_has_Recipes WHERE User_userID = ${query.searchParams.get("uid")}`
+                                    let queryString = `DELETE FROM User_has_Recipes WHERE User_userID = ${query.searchParams.get("uid")}`;
 
                                     dbQuery.push(queryString);
 
@@ -1391,7 +1387,6 @@ https.createServer(options, async function(request, response)
                             if (query.searchParams.has("boxName")) {
                                 let queryString = `DELETE Boxes, Boxes_has_Ingredients, Ingredients FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxName = ${query.searchParams.get("boxName")}; `;
 
-
                                 dbQuery.push(queryString);
 
                                 sendQuery(dbQuery).then(sendResult).catch(sendResult);
@@ -1405,40 +1400,198 @@ https.createServer(options, async function(request, response)
                             else {
                                 // maybe get rid of this?
 
-
                                 // if box type identifier is not present, send back 400 Bad Request
                                 resultMessage.code = 400;
                                 resultMessage.message = "Request not valid, search term invalid";
 
                                 sendResult(resultMessage);
                             }
-                            break;
-                        }
                         break;
+                    }
+                    break;
                 case "PUT":
                     // put logic goes here
-                    switch (query.pathname) {
-                                case "/user":
+                    data = "";
+                    switch (query.pathname)
+                    {
+                        case "/user":
 
-                                    break;
-                                case "/pantry":
+                            break;
+                        case "/pantry":
+                            request.on("data", function(inData)
+                            {
+                                data = data.concat(inData);
+                            });
 
-                                    break;
-                                case "/recipe":
+                            request.on("end", function()
+                            {
+                                let queryData = JSON.parse(data);
 
-                                    break;
-                                case "/box":
+                                if(queryData.hasOwnProperty("userID") && queryData.hasOwnProperty("ingredients"))
+                                {
+                                    if(Array.isArray(queryData.ingredients))
+                                    {
+                                        let queryString = "";
 
-                                    break;
-                                case "/sites":
+                                        for(let index in queryData.ingredients)
+                                        {
+                                            let currElement = queryData.ingredients[index];
 
-                                    break;
-                            }
-                    break;
+                                            if(currElement.hasOwnProperty("ingredientID") && currElement.hasOwnProperty("ingredientName") && currElement.hasOwnProperty("ingredientQuantity") && currElement.hasOwnProperty("ingredientUnit"))
+                                            {
+                                                queryString = `UPDATE Pantry_has_Ingredients SET ingredientQuantity = ${currElement.ingredientQuantity}, ingredientUnit = "${currElement.ingredientUnit}" WHERE Ingredients_IngID = ${currElement.ingredientID} AND Pantry_pantryID = (SELECT pantryID FROM Pantry WHERE User_userID = ${queryData.userID});`;
+
+                                                dbQuery.push(queryString);
+                                            }
+                                        }
+
+                                        console.log(`DEBUG: the query set is: ${dbQuery.toString()}`);
+                                        //sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                    }
+                                    else
+                                    {
+                                        resultMessage.code = 400;
+                                        resultMessage.message = "Bad Request: field 'ingredients' should be an array";
+                                    }
+                                }
+                                else
+                                {
+                                    // else, send back 400 Bad Request
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Bad Request: JSON field missing";
+                                }
+                            });
 
 
+                            break;
+                        case "/recipe":
+                            // request needs to send all data for a recipe
+                            request.on("data", function(inData)
+                            {
+                                data = data.concat(inData);
+                            });
 
-                }
+                            request.on("end", async function()
+                            {
+                                if(data.length > 0)
+                                {
+                                    let queryData = JSON.parse(data);
+                                    let queryString = `UPDATE Recipes SET `;
+                                    let needsComma = false;
+
+                                    if(queryData.hasOwnProperty("recipeID"))
+                                    {
+                                        if(queryData.hasOwnProperty("recipeName"))
+                                        {
+                                            // if the recipe name needs to be updated
+                                            queryString = queryString.concat(`recipeName = ${queryData.recipeName}`);
+                                            needsComma = true;
+                                        }
+
+                                        if(queryData.hasOwnProperty("cuisine"))
+                                        {
+                                            // if the recipe cuisine needs to be updated
+                                            if(needsComma)
+                                            {
+                                                queryString = queryString.concat(`, `);
+                                            }
+                                            else
+                                            {
+                                                needsComma = true;
+                                            }
+
+                                            queryString = queryString.concat(`cuisineType = ${queryData.cuisine}`);
+                                        }
+
+                                        if(queryData.hasOwnProperty("timeToMake"))
+                                        {
+                                            // if the recipe TTM needs to be updated
+                                            if(needsComma)
+                                            {
+                                                queryString = queryString.concat(`, `);
+                                            }
+                                            else
+                                            {
+                                                needsComma = true;
+                                            }
+
+                                            queryString = queryString.concat(`timeToMake = ${queryData.timeToMake}`);
+                                        }
+
+                                        // if the query has been updated at all, push it into the query queue and send it
+                                        if(needsComma)
+                                        {
+                                            // if needsComma is true, that means the query has been updated, and so needs to be sent
+                                            console.log(`The query set is: ${queryString}`);
+                                        }
+
+                                        if(queryData.hasOwnProperty("ingredients"))
+                                        {
+                                            // if the ingredient content needs to be updated
+                                            // NOTE: ALL INGREDIENTS WILL NEED TO BE RESENT
+                                            if(Array.isArray(queryData.ingredients))
+                                            {
+                                                // delete all existing Recipe_has_Ingredients entries for this recipeID
+
+                                                let queryString = `DELETE FROM Recipe_has_Ingredients WHERE recipeID = ${queryData.recipeID}`;
+
+                                                dbQuery.push(queryString);
+
+                                                await sendQuery(dbQuery).then(async function()
+                                                {
+                                                    resultMessage = await addIngredients(queryData);
+                                                }).catch(sendResult);
+                                            }
+                                            else
+                                            {
+                                                resultMessage.code = 400;
+                                                resultMessage.message = "Bad Request: the ingredients field should be an array of JSON objects";
+                                            }
+                                        }
+
+                                        if(queryData.hasOwnProperty("steps"))
+                                        {
+                                            // if the recipe steps need to be updated
+                                            if(Array.isArray(queryData.steps))
+                                            {
+                                                let queryString = "";
+                                                for(let index in queryData.steps)
+                                                {
+                                                    queryString = `UPDATE recipeSteps SET stepContent = "${queryData.steps[index].stepContent}" WHERE Recipes_recipeID = ${queryData.recipeID} AND stepNum = ${queryData.steps[index].stepNum}`;                                                }
+                                            }
+                                            else
+                                            {
+                                                resultMessage.code = 400;
+                                                resultMessage.message = "Bad Request: the steps field should be an array of JSON objects";
+                                            }
+                                        }
+
+                                        sendResult();
+                                    }
+                                    else
+                                    {
+                                        // if the recipeID is missing, send back 400 Bad Request
+                                        resultMessage.code = 400;
+                                        resultMessage.message = "Bad Request: field 'recipeID' missing from request data";
+                                    }
+                                }
+                                else
+                                {
+                                    // else, the data field is missing or did not transmit properly
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Bad Request: request data missing";
+                                }
+                            });
+                            break;
+                        case "/box":
+
+                            break;
+                        case "/sites":
+
+                            break;
+                    }
+                break;
+            }
 
         }
         else
