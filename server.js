@@ -1234,50 +1234,66 @@ https.createServer(options, async function(request, response)
 
                                    sendResult(resultMessage);
                                    }
-                                } else if (query.searchParams.has("uemail")) {
+                            } else if (query.searchParams.has("uemail")) {
                                // get user information based on email
-                               dbQuery.push(`DELETE FROM User WHERE userEmail = ${query.searchParams.get("uemail")};`);
+                               if (true) {
+                                   console.log("query formatted correctly\n");
+                                   // if the auth code is valid, construct the dbquery
+                                   dbQuery.push(`DELETE FROM User WHERE userEmail = ${query.searchParams.get("uemail")};`);
+                                   // then, send the query to the database
+                                   sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                               } else if (false) {
+                               // else if auth code valid but permissions are wrong, return code 403 Forbidden
+                               resultMessage.code = 403;
+                               resultMessage.message = "Permissions not valid for this resource";
+                               
+                               sendResult(resultMessage);
+                               } else {
+                               // else return code 401 Unauthorized
+                               resultMessage.code = 401;
+                               resultMessage.message = "Authorization code not valid";
+                               
+                               sendResult(resultMessage);
+                               }
 
-                               sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                } else {
+                            } else {
                                   // if either the UID or authcode are missing, send back 400 Bad Request
                                   resultMessage.code = 400;
                                   resultMessage.message = "Request not valid";
 
                                   sendResult(resultMessage);
-                                }
+                            }
 
-                                break;
+                            break;
 
                         case "/pantry":
                             if (query.searchParams.has("uid")) {
-                            // console.log("uid case entered\n");
-                            // first, check auth code (when auth server is ready)
-                            if (true) {
-                                console.log("query formatted correctly\n");
+                                // console.log("uid case entered\n");
+                                // first, check auth code (when auth server is ready)
+                                if (true) {
+                                    console.log("query formatted correctly\n");
+                                    let userID = query.searchParams.get("uid");
+                                    dbQuery.push(`DELETE Pantry_has_Ingredients, Ingredients FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID = Pantry_has_Ingredients.Pantry_pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Pantry.User_userID = ${userID} AND Ingredients.IngID = Pantry_has_Ingredients.Ingredients_IngID;`);
+                                    // then, send the query to the database
+                                    sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                } else if (false) {
+                                    // else if auth code valid but permissions are wrong, return code 403 Forbidden
+                                    resultMessage.code = 403;
+                                    resultMessage.message = "Permissions not valid for this resource";
 
-                                let userID = query.searchParams.get("uid");
-                                dbQuery.push(`DELETE Pantry_has_Ingredients, Ingredients FROM Pantry INNER JOIN Pantry_has_Ingredients ON Pantry.pantryID = Pantry_has_Ingredients.Pantry_pantryID INNER JOIN Ingredients ON Pantry_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Pantry.User_userID = ${userID} AND Ingredients.IngID = Pantry_has_Ingredients.Ingredients_IngID ;`);
-                                // then, send the query to the database
-                                sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                            } else if (false) {
-                                // else if auth code valid but permissions are wrong, return code 403 Forbidden
-                                resultMessage.code = 403;
-                                resultMessage.message = "Permissions not valid for this resource";
+                                    sendResult(resultMessage);
+                                } else {
+                                    // else return code 401 Unauthorized
+                                    resultMessage.code = 401;
+                                    resultMessage.message = "Authorization code not valid";
 
-                                sendResult(resultMessage);
-                            } else {
-                                // else return code 401 Unauthorized
-                                resultMessage.code = 401;
-                                resultMessage.message = "Authorization code not valid";
-
-                                sendResult(resultMessage);
+                                    sendResult(resultMessage);
                                 }
                             } else if(query.searchParams.has("IngName")){
                                 if (true) {
                                 console.log("query formatted correctly\n");
-
-                                dbQuery.push(`DELETE FROM Ingredients WHERE IngName = ${query.searchParams.get("IngName")};`);
+                                let ingName = query.searchParams.get("IngName");
+                                dbQuery.push(`DELETE FROM Ingredients WHERE IngName = ${ingName};`);
                                 // then, send the query to the database
                                 sendQuery(dbQuery).then(sendResult).catch(sendResult);
                                 } else if (false) {
@@ -1294,21 +1310,24 @@ https.createServer(options, async function(request, response)
                                 sendResult(resultMessage);
                                 }
 
-                        }else {
-                             // if either the UID or authcode are missing, send back 400 Bad Request
-                             resultMessage.code = 400;
-                             resultMessage.message = "Request not valid";
+                            }else {
+                                // if either the UID or authcode are missing, send back 400 Bad Request
+                                resultMessage.code = 400;
+                                resultMessage.message = "Request not valid";
 
-                             sendResult(resultMessage);
-                        }
+                                sendResult(resultMessage);
+                            }
 
-                        break;
-                        case "/sites":
+                            break;
+                            
+                        case "/site":
                             if (query.searchParams.has("siteName")) {
                                  if (true) {
                                      console.log("query formatted correctly\n");
-
-                                     dbQuery.push(`DELETE FROM DistributionSites WHERE siteName = ${query.searchParams.get("siteName")};`);
+                                     let siteName = query.searchParams.get("siteName");
+                                     console.log(siteName);
+                                     dbQuery.push(`DELETE FROM DistributionSites WHERE siteName = ${siteName};`);
+                                     sendQuery(dbQuery).then(sendResult).catch(sendResult);  
                                  } else if (false) {
                                      // else if auth code valid but permissions are wrong, return code 403 Forbidden
                                      resultMessage.code = 403;
@@ -1322,7 +1341,6 @@ https.createServer(options, async function(request, response)
 
                                      sendResult(resultMessage);
                                  }
-
                             } else {
                                 resultMessage.code = 400;
                                 resultMessage.message = "Request not valid, search term invalid";
@@ -1331,6 +1349,7 @@ https.createServer(options, async function(request, response)
                             }
 
                             break;
+                            
                         case "/recipe":
                             // if request is for recipes, check query contents
                             if (query.searchParams.has("uid")) {
@@ -1366,6 +1385,7 @@ https.createServer(options, async function(request, response)
                             }
 
                             break;
+                            
                         case "/box":
                             // if request is for food boxes, check query contents
                             if (query.searchParams.has("boxName")) {
