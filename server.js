@@ -947,7 +947,7 @@ https.createServer(options, async function(request, response)
                                         // in this case, need to create a column in the user and the user_pantry table
 
                                         let colString = "(userEmail, userName, userKey";
-                                        let valString = `("${queryData.userEmail}", "${queryData.userName}", "${queryData.userPassword}"`;
+                                        let valString = `"${queryData.userEmail}", "${queryData.userName}", "${queryData.userPassword}"`;
 
                                         if (queryData.hasOwnProperty("userPhone")) {
                                             colString = colString.concat(", userPhone");
@@ -1386,6 +1386,7 @@ https.createServer(options, async function(request, response)
                             if (query.searchParams.has("boxName")) {
                                 let queryString = `DELETE Boxes, Boxes_has_Ingredients, Ingredients FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxName = ${query.searchParams.get("boxName")}; `;
 
+
                                 dbQuery.push(queryString);
 
                                 sendQuery(dbQuery).then(sendResult).catch(sendResult);
@@ -1399,6 +1400,7 @@ https.createServer(options, async function(request, response)
                             else {
                                 // maybe get rid of this?
 
+
                                 // if box type identifier is not present, send back 400 Bad Request
                                 resultMessage.code = 400;
                                 resultMessage.message = "Request not valid, search term invalid";
@@ -1407,7 +1409,6 @@ https.createServer(options, async function(request, response)
                             }
                             break;
                         }
-
                         break;
                 case "PUT":
                     // put logic goes here
