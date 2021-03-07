@@ -947,7 +947,7 @@ https.createServer(options, async function(request, response)
                                         // in this case, need to create a column in the user and the user_pantry table
 
                                         let colString = "(userEmail, userName, userKey";
-                                        let valString = `"${queryData.userEmail}", "${queryData.userName}", "${queryData.userPassword}"`;
+                                        let valString = `("${queryData.userEmail}", "${queryData.userName}", "${queryData.userPassword}"`;
 
                                         if (queryData.hasOwnProperty("userPhone")) {
                                             colString = colString.concat(", userPhone");
