@@ -623,7 +623,7 @@ https.createServer(options, async function(request, response)
                             } else if (query.searchParams.has("uemail")) {
                                 // todo: get password for user case
                                 // get user information based on email
-                                dbQuery.push(`SELECT userName, userPhone, userID FROM User WHERE userEmail = "${query.searchParams.get("uemail")}";`);
+                                dbQuery.push(`SELECT * FROM User WHERE userEmail = ${query.searchParams.get("uemail")};`);
 
                                 sendQuery(dbQuery).then(sendResult).catch(sendResult);
                             } else {

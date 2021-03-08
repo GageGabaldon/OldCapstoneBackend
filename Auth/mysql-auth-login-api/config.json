@@ -1,6 +1,6 @@
 ﻿{
     "database": {
-        "host": "localhost",
+        "host": "23.254.161.117",
         "port": 3306,
         "user": "admin",
         "password": "Fridgefiller2021",
