@@ -33,8 +33,8 @@ function gettoken(req, res, next) {
 
 function registerSchema(req, res, next) {
     const schema = Joi.object({
-	userName: Joi.string().required(),
-	userPhone: Joi.string(),
+		userName: Joi.string().required(),
+		userPhone: Joi.string(),
         userEmail: Joi.string().required(),
         userKey: Joi.string().min(6).required()
     });
@@ -49,7 +49,7 @@ function register(req, res, next) {
 
 function authenticateSchema(req, res, next) {
     const schema = Joi.object({
-	userName: Joi.string().required(),
+		userName: Joi.string(),
         userEmail: Joi.string().required(),
         userKey: Joi.string().required(),
         userToken: Joi.string().required()
