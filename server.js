@@ -1,5 +1,5 @@
 // Load in the appropriate libraries
-let https = require("http");
+let https = require("https");
 let url = require("url");
 let mysql = require("mysql");
 let fs = require("fs");
@@ -13,9 +13,7 @@ const options = {
     cert: fs.readFileSync('keys/server/cert.pem')
 };
 
-//options,
-
-https.createServer(async function(request, response)
+https.createServer(options, async function(request, response)
 {
     console.log("request recieved\n");
 
@@ -1634,4 +1632,4 @@ https.createServer(async function(request, response)
     }
 
 
-}).listen(8080);
+}).listen(443);
