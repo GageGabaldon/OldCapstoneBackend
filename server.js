@@ -31,8 +31,8 @@ https.createServer(options, async function(request, response)
         let dbcon = mysql.createConnection
         ({
             host: "23.254.161.117",
-            user: "customer",
-            password: "FridgefillerCustomer",
+            user: "admin",
+            password: "Fridgefiller2021",
             database: "FridgeFiller",
             debug: true,
             /*
@@ -925,7 +925,7 @@ https.createServer(options, async function(request, response)
                         case "/userfav":
                             if(query.searchParams.has("uid"))
                             {
-                                let queryString = `SELECT * FROM User_has_Recipes WHERE User_userID = ${query.searchParams.get("uid")};`;
+                                let queryString = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM User_has_Recipes INNER JOIN Recipes ON User_has_Recipes.Recipes_recipeID = Recipes.recipeID WHERE User_userID = ${query.searchParams.get("uid")};`;
                                 dbQuery.push(queryString);
 
                                 let queryResult = await sendQuery(dbQuery);
