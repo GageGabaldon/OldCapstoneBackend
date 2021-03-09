@@ -1344,13 +1344,13 @@ https.createServer(options, async function(request, response)
                             if (query.searchParams.has("recipeID"))
                             {
                                 //used for admin to delete the whole recipe
-                                let queryString = `DELETE FROM recipeSteps WHERE Recipes_recipeID = ${query.searchParams.get("recipeID")}`;
+                                let queryString = `DELETE FROM recipeSteps WHERE Recipes_recipeID = ${query.searchParams.get("recipeID")};`;
                                 dbQuery.push(queryString);
 
-                                queryString = `DELETE FROM Recipe_has_Ingredients WHERE Recipes_recipeID = ${query.searchParams.get("recipeID")}`;
+                                queryString = `DELETE FROM Recipe_has_Ingredients WHERE Recipes_recipeID = ${query.searchParams.get("recipeID")};`;
                                 dbQuery.push(queryString);
 
-                                queryString = `DELETE FROM Recipes WHERE recipeID = ${query.searchParams.get("recipeID")}`;
+                                queryString = `DELETE FROM Recipes WHERE recipeID = ${query.searchParams.get("recipeID")};`;
                                 dbQuery.push(queryString);
 
                                 sendQuery(dbQuery).then(sendResult).catch(sendResult);
@@ -1431,12 +1431,14 @@ https.createServer(options, async function(request, response)
                                         }
 
                                         console.log(`DEBUG: the query set is: ${dbQuery.toString()}`);
-                                        //sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                        sendQuery(dbQuery).then(sendResult).catch(sendResult);
                                     }
                                     else
                                     {
                                         resultMessage.code = 400;
                                         resultMessage.message = "Bad Request: field 'ingredients' should be an array";
+
+                                        sendResult(resultMessage);
                                     }
                                 }
                                 else
@@ -1444,6 +1446,8 @@ https.createServer(options, async function(request, response)
                                     // else, send back 400 Bad Request
                                     resultMessage.code = 400;
                                     resultMessage.message = "Bad Request: JSON field missing";
+
+                                    sendResult(resultMessage);
                                 }
                             });
 
@@ -1542,22 +1546,28 @@ https.createServer(options, async function(request, response)
                                                 let queryString = "";
                                                 for(let index in queryData.steps)
                                                 {
-                                                    queryString = `UPDATE recipeSteps SET stepContent = "${queryData.steps[index].stepContent}" WHERE Recipes_recipeID = ${queryData.recipeID} AND stepNum = ${queryData.steps[index].stepNum}`;                                                }
+                                                    queryString = `UPDATE recipeSteps SET stepContent = "${queryData.steps[index].stepContent}" WHERE Recipes_recipeID = ${queryData.recipeID} AND stepNum = ${queryData.steps[index].stepNum}`;
+                                                    dbQuery.push(queryString);
+                                                }
+
+                                                sendQuery(queryString).then(sendResult).catch(sendResult);
                                             }
                                             else
                                             {
                                                 resultMessage.code = 400;
                                                 resultMessage.message = "Bad Request: the steps field should be an array of JSON objects";
+
+                                                sendResult(resultMessage);
                                             }
                                         }
-
-                                        sendResult();
                                     }
                                     else
                                     {
                                         // if the recipeID is missing, send back 400 Bad Request
                                         resultMessage.code = 400;
                                         resultMessage.message = "Bad Request: field 'recipeID' missing from request data";
+
+                                        sendResult(resultMessage);
                                     }
                                 }
                                 else
@@ -1565,6 +1575,8 @@ https.createServer(options, async function(request, response)
                                     // else, the data field is missing or did not transmit properly
                                     resultMessage.code = 400;
                                     resultMessage.message = "Bad Request: request data missing";
+
+                                    sendResult(resultMessage);
                                 }
                             });
                             break;
@@ -1584,6 +1596,8 @@ https.createServer(options, async function(request, response)
             // else, the pathname is not valid, send back 400 Bad Request
             resultMessage.code = 400;
             resultMessage.message = "Provided resource name is not valid";
+
+            sendResult(resultMessage);
         }
     }
     else
@@ -1591,6 +1605,8 @@ https.createServer(options, async function(request, response)
         // else, the method is not valid, send back 501 Not Implemented
         resultMessage.code = 501;
         resultMessage.message = "Method " + request.method + " is not valid or not implemented";
+
+        sendResult(resultMessage);
     }
 
 
