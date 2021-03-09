@@ -5,7 +5,7 @@ let mysql = require("mysql");
 let fs = require("fs");
 let EventEmitter = require("events").EventEmitter;
 let validItems = ['user', 'pantry', 'site', 'box', 'recipe', 'userfav'];
-let validMethods = ['GET', 'POST', 'DELETE', 'PUT'];
+let validMethods = ['GET', 'POST', 'DELETE', 'PUT', 'OPTIONS'];
 // TODO: implement array of json objects that keep track of valid search terms
 
 const options = {
