@@ -13,7 +13,9 @@ const options = {
     cert: fs.readFileSync('keys/server/cert.pem')
 };
 
-https.createServer(options, async function(request, response)
+//options,
+
+https.createServer(async function(request, response)
 {
     console.log("request recieved\n");
 
