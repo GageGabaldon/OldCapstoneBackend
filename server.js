@@ -904,7 +904,7 @@ https.createServer(options, async function(request, response)
                                 if (query.searchParams.get("boxname") === '*') {
                                     queryString = `SELECT boxID, boxName, IngName FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID;`;
                                 } else {
-                                    queryString = `SELECT boxID, boxName, IngName FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxName = ${query.searchParams.get("boxname")};`
+                                    queryString = `SELECT boxID, boxName, IngName FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxName = "${query.searchParams.get("boxname")}";`
                                 }
 
                                 dbQuery.push(queryString);
@@ -1310,7 +1310,8 @@ https.createServer(options, async function(request, response)
                                  {
                                      console.log("query formatted correctly\n");
 
-                                     dbQuery.push(`DELETE FROM DistributionSites WHERE siteName = ${query.searchParams.get("siteName")};`);
+                                     dbQuery.push(`DELETE FROM DistributionSites WHERE siteName = "${query.searchParams.get("siteName")}";`);
+                                     sendQuery(dbQuery).then(sendResult).catch(sendResult);
                                  }
                                  else if (false)
                                  {
@@ -1370,7 +1371,6 @@ https.createServer(options, async function(request, response)
                                 let queryString = `DELETE Boxes, Boxes_has_Ingredients, Ingredients FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxName = ${query.searchParams.get("boxName")}; `;
 
                                 dbQuery.push(queryString);
-
                                 sendQuery(dbQuery).then(sendResult).catch(sendResult);
                             }
                             else if(query.searchParams.has("boxID"))
@@ -1378,7 +1378,6 @@ https.createServer(options, async function(request, response)
                                 let queryString = `DELETE Boxes, Boxes_has_Ingredients, Ingredients FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxID = ${query.searchParams.get("boxID")}; `;
 
                                 dbQuery.push(queryString);
-
                                 sendQuery(dbQuery).then(sendResult).catch(sendResult);
                             }
                             else
