@@ -570,8 +570,9 @@ https.createServer(options, async function(request, response)
 
     response.setHeader("Access-Control-Allow-Origin", '*');
     response.setHeader("Access-Control-Request-Method", '*');
-    response.setHeader("Access-Control-Allow-Methods", 'GET, POST, DELETE, PUT');
+    response.setHeader("Access-Control-Allow-Methods", 'GET, POST, DELETE, PUT, OPTIONS');
     response.setHeader("Access-Control-Allow-Headers", '*');
+    response.setHeader('Access-Control-Allow-Credentials', 'true');
 
     let query = new url.URL(request.url, `https://${request.headers.host}`);
     let dbQuery = [];
@@ -587,7 +588,8 @@ https.createServer(options, async function(request, response)
         {
             let data = "";
 
-            switch (request.method) {
+            switch (request.method)
+            {
                 case "GET":
                     // check the path name for the requested resource
                     console.log(`request type: GET, pathname is ${query.pathname} \n arguments are: ${query.searchParams.get("source")}`);
@@ -919,6 +921,26 @@ https.createServer(options, async function(request, response)
 
                                 sendResult(resultMessage);
                             }
+                            break;
+                        case "/userfav":
+                            if(query.searchParams.has("uid"))
+                            {
+                                let queryString = `SELECT * FROM User_has_Recipes WHERE User_userID = ${query.searchParams.get("uid")};`;
+                                dbQuery.push(queryString);
+
+                                let queryResult = await sendQuery(dbQuery);
+
+                                getRecipeData(queryResult).then(sendResult).catch(sendResult);
+                            }
+                            else
+                            {
+                                resultMessage.code = 400;
+                                resultMessage.message = "Request not valid, JSON data is missing fields or is otherwise formatted incorrectly";
+
+                                sendResult(resultMessage);
+                            }
+
+
                             break;
                     }
                     break;
