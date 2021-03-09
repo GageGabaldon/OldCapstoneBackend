@@ -9,7 +9,7 @@ let validMethods = ['GET', 'POST', 'DELETE', 'PUT'];
 // TODO: implement array of json objects that keep track of valid search terms
 
 const options = {
-    key: fs.readFileSync('keys/server/key.pem'),
+    key: fs.readFileSync('keys/server/privKey.pem'),
     cert: fs.readFileSync('keys/server/cert.pem')
 };
 
