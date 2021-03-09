@@ -1,10 +1,10 @@
 // Load in the appropriate libraries
-let https = require("https");
+let https = require("http");
 let url = require("url");
 let mysql = require("mysql");
 let fs = require("fs");
 let EventEmitter = require("events").EventEmitter;
-let validItems = ['user', 'pantry', 'site', 'box', 'recipe'];
+let validItems = ['user', 'pantry', 'site', 'box', 'recipe', 'userfav'];
 let validMethods = ['GET', 'POST', 'DELETE', 'PUT'];
 // TODO: implement array of json objects that keep track of valid search terms
 
@@ -31,8 +31,8 @@ https.createServer(options, async function(request, response)
         let dbcon = mysql.createConnection
         ({
             host: "23.254.161.117",
-            user: "customer",
-            password: "FridgefillerCustomer",
+            user: "admin",
+            password: "Fridgefiller2021",
             database: "FridgeFiller",
             debug: true,
             /*
@@ -71,11 +71,11 @@ https.createServer(options, async function(request, response)
                             localResult.content.push(dbResult);
 
                             console.log(`Database query ${query.toString()} successful\n`);
-
-                            resolve(localResult);
                         }
                     });
                 }
+
+                resolve(localResult);
             });
 
             queryPromise.then(function(localResult)
@@ -570,8 +570,9 @@ https.createServer(options, async function(request, response)
 
     response.setHeader("Access-Control-Allow-Origin", '*');
     response.setHeader("Access-Control-Request-Method", '*');
-    response.setHeader("Access-Control-Allow-Methods", 'GET, POST, DELETE, PUT');
+    response.setHeader("Access-Control-Allow-Methods", 'GET, POST, DELETE, PUT, OPTIONS');
     response.setHeader("Access-Control-Allow-Headers", '*');
+    response.setHeader('Access-Control-Allow-Credentials', 'true');
 
     let query = new url.URL(request.url, `https://${request.headers.host}`);
     let dbQuery = [];
@@ -587,7 +588,8 @@ https.createServer(options, async function(request, response)
         {
             let data = "";
 
-            switch (request.method) {
+            switch (request.method)
+            {
                 case "GET":
                     // check the path name for the requested resource
                     console.log(`request type: GET, pathname is ${query.pathname} \n arguments are: ${query.searchParams.get("source")}`);
@@ -920,11 +922,31 @@ https.createServer(options, async function(request, response)
                                 sendResult(resultMessage);
                             }
                             break;
+                        case "/userfav":
+                            if(query.searchParams.has("uid"))
+                            {
+                                let queryString = `SELECT recipeID, recipeName, cuisineType, timeToMake, recipeRating, numRatings FROM User_has_Recipes INNER JOIN Recipes ON User_has_Recipes.Recipes_recipeID = Recipes.recipeID WHERE User_userID = ${query.searchParams.get("uid")};`;
+                                dbQuery.push(queryString);
+
+                                let queryResult = await sendQuery(dbQuery);
+
+                                getRecipeData(queryResult).then(sendResult).catch(sendResult);
+                            }
+                            else
+                            {
+                                resultMessage.code = 400;
+                                resultMessage.message = "Request not valid, JSON data is missing fields or is otherwise formatted incorrectly";
+
+                                sendResult(resultMessage);
+                            }
+
+
+                            break;
                     }
                     break;
                 case "POST":
-
-                    switch (query.pathname) {
+                    switch (query.pathname)
+                    {
                         case "/user":
                             // CASE: adding new user
                             // query.searchParams.has("uEmail") && query.searchParams.has("uPassword") && query.searchParams.has("uName")
@@ -1186,7 +1208,8 @@ https.createServer(options, async function(request, response)
                                 let queryData = JSON.parse(data);
 
                                 if (queryData.hasOwnProperty("userID") && queryData.hasOwnProperty("recipeID")) {
-                                    dbQuery = `INSERT INTO User_has_Recipes (User_userID, Recipes_recipeID) VALUES (${queryData.userID}, ${queryData.recipeID})`;
+                                    let queryString = `INSERT INTO User_has_Recipes (User_userID, Recipes_recipeID) VALUES (${queryData.userID}, ${queryData.recipeID})`;
+                                    dbQuery.push(queryString);
 
                                     sendQuery(dbQuery).then(sendResult).catch(sendResult);
                                 } else {
@@ -1202,7 +1225,8 @@ https.createServer(options, async function(request, response)
                 case "DELETE":
                     console.log(`request type: DELETE, pathname is ${query.pathname} \n arguments are: ${query.searchParams.get("source")}`);
                     // delete logic goes here
-                    switch (query.pathname) {
+                    switch (query.pathname)
+                    {
                         case "/user":
                             // if request is for user information, check query contents to make sure necessary items are present
                             console.log(`user case entered, query is ${query.searchParams}\n`);
@@ -1211,19 +1235,30 @@ https.createServer(options, async function(request, response)
                             if (query.searchParams.has("uid")) {
                                console.log("uid case entered\n");
                                // first, check auth code (when auth server is ready)
-                               if (true) {
-                                  console.log("query formatted correctly\n");
-                                  // if the auth code is valid, construct the dbquery
-                                  dbQuery.push(`DELETE FROM User where userID = ${query.searchParams.get("uid")};`);
-                                  // then, send the query to the database
-                                  sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                  } else if (false) {
+                               if (true)
+                               {
+                                   console.log("query formatted correctly\n");
+                                   // if the auth code is valid, construct the dbquery
+
+                                   let queryString = `DELETE FROM Pantry WHERE User_userID = ${query.searchParams.get("uid")}`;
+                                   dbQuery.push(queryString);
+
+                                   queryString = `DELETE FROM User where userID = ${query.searchParams.get("uid")};`
+                                   dbQuery.push(queryString);
+
+                                   // then, send the query to the database
+                                   sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                               }
+                               else if (false)
+                               {
                                    // else if auth code valid but permissions are wrong, return code 403 Forbidden
                                    resultMessage.code = 403;
                                    resultMessage.message = "Permissions not valid for this resource";
 
                                    sendResult(resultMessage);
-                                   } else {
+                               }
+                               else
+                               {
                                    // else return code 401 Unauthorized
                                    resultMessage.code = 401;
                                    resultMessage.message = "Authorization code not valid";
@@ -1250,9 +1285,7 @@ https.createServer(options, async function(request, response)
 
                                 sendResult(resultMessage);
                             }
-
                             break;
-
                         case "/pantry":
                             if(query.searchParams.has("ingredientID") && query.searchParams.has("uid"))
                             {
@@ -1310,7 +1343,9 @@ https.createServer(options, async function(request, response)
                                      resultMessage.message = "Permissions not valid for this resource";
 
                                      sendResult(resultMessage);
-                                 } else {
+                                 }
+                                 else
+                                 {
                                      // else return code 401 Unauthorized
                                      resultMessage.code = 401;
                                      resultMessage.message = "Authorization code not valid";
@@ -1325,34 +1360,26 @@ https.createServer(options, async function(request, response)
 
                                 sendResult(resultMessage);
                             }
-
                             break;
                         case "/recipe":
                             // if request is for recipes, check query contents
-                            if (query.searchParams.has("uid")) {
-                                // if the query wants recipes for a certain user
-                                if (query.searchParams.get("source") === "favorite") {
-                                    //used for customer to delete favorite recipe
-                                    let queryString = `DELETE FROM User_has_Recipes WHERE User_userID = ${query.searchParams.get("uid")}`;
-
-                                    dbQuery.push(queryString);
-                                    sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                                } else {
-                                    // if neither case is true, send 400 Bad Request
-                                    resultMessage.code = 400;
-                                    resultMessage.message = "Request not valid, search term missing or not valid";
-
-                                    sendResult(resultMessage);
-                                }
-                            } else if (query.searchParams.has("recipeID")) {
+                            if (query.searchParams.has("recipeID"))
+                            {
                                 //used for admin to delete the whole recipe
-                                let queryString = `DELETE Recipes, Recipe_has_Ingredients, recipeSteps FROM Recipes INNER JOIN Recipe_has_Ingredients ON Recipes.recipeID = Recipe_has_Ingredients.Recipes_recipeID INNER JOIN recipeSteps ON Recipes.recipeID = recipeSteps.Recipes_recipeID WHERE recipeID = ${query.searchParams.get("recipeID")}`;
-
+                                let queryString = `DELETE FROM recipeSteps WHERE Recipes_recipeID = ${query.searchParams.get("recipeID")};`;
                                 dbQuery.push(queryString);
-                                sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                            } else {
-                                // if none of the above identifiers are present, send back 400 bad request
 
+                                queryString = `DELETE FROM Recipe_has_Ingredients WHERE Recipes_recipeID = ${query.searchParams.get("recipeID")};`;
+                                dbQuery.push(queryString);
+
+                                queryString = `DELETE FROM Recipes WHERE recipeID = ${query.searchParams.get("recipeID")};`;
+                                dbQuery.push(queryString);
+
+                                sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                            }
+                            else
+                            {
+                                // if the recipeID is not present, send 400 bad request
                                 resultMessage.code = 400;
                                 resultMessage.message = "Request not valid, search term missing or not valid";
 
@@ -1362,18 +1389,22 @@ https.createServer(options, async function(request, response)
                             break;
                         case "/box":
                             // if request is for food boxes, check query contents
-                            if (query.searchParams.has("boxName")) {
-                                let queryString = `DELETE Boxes, Boxes_has_Ingredients, Ingredients FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxName = "${query.searchParams.get("boxName")}"; `;
+                            if (query.searchParams.has("boxName"))
+                            {
+                                let queryString = `DELETE Boxes, Boxes_has_Ingredients, Ingredients FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxName = ${query.searchParams.get("boxName")}; `;
 
                                 dbQuery.push(queryString);
                                 sendQuery(dbQuery).then(sendResult).catch(sendResult);
-                            } else if(query.searchParams.has("boxID")){
+                            }
+                            else if(query.searchParams.has("boxID"))
+                            {
                                 let queryString = `DELETE Boxes, Boxes_has_Ingredients, Ingredients FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxID = ${query.searchParams.get("boxID")}; `;
 
                                 dbQuery.push(queryString);
                                 sendQuery(dbQuery).then(sendResult).catch(sendResult);
                             }
-                            else {
+                            else
+                            {
                                 // maybe get rid of this?
 
                                 // if box type identifier is not present, send back 400 Bad Request
@@ -1422,12 +1453,14 @@ https.createServer(options, async function(request, response)
                                         }
 
                                         console.log(`DEBUG: the query set is: ${dbQuery.toString()}`);
-                                        //sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                        sendQuery(dbQuery).then(sendResult).catch(sendResult);
                                     }
                                     else
                                     {
                                         resultMessage.code = 400;
                                         resultMessage.message = "Bad Request: field 'ingredients' should be an array";
+
+                                        sendResult(resultMessage);
                                     }
                                 }
                                 else
@@ -1435,6 +1468,8 @@ https.createServer(options, async function(request, response)
                                     // else, send back 400 Bad Request
                                     resultMessage.code = 400;
                                     resultMessage.message = "Bad Request: JSON field missing";
+
+                                    sendResult(resultMessage);
                                 }
                             });
 
@@ -1533,22 +1568,28 @@ https.createServer(options, async function(request, response)
                                                 let queryString = "";
                                                 for(let index in queryData.steps)
                                                 {
-                                                    queryString = `UPDATE recipeSteps SET stepContent = "${queryData.steps[index].stepContent}" WHERE Recipes_recipeID = ${queryData.recipeID} AND stepNum = ${queryData.steps[index].stepNum}`;                                                }
+                                                    queryString = `UPDATE recipeSteps SET stepContent = "${queryData.steps[index].stepContent}" WHERE Recipes_recipeID = ${queryData.recipeID} AND stepNum = ${queryData.steps[index].stepNum}`;
+                                                    dbQuery.push(queryString);
+                                                }
+
+                                                sendQuery(queryString).then(sendResult).catch(sendResult);
                                             }
                                             else
                                             {
                                                 resultMessage.code = 400;
                                                 resultMessage.message = "Bad Request: the steps field should be an array of JSON objects";
+
+                                                sendResult(resultMessage);
                                             }
                                         }
-
-                                        sendResult();
                                     }
                                     else
                                     {
                                         // if the recipeID is missing, send back 400 Bad Request
                                         resultMessage.code = 400;
                                         resultMessage.message = "Bad Request: field 'recipeID' missing from request data";
+
+                                        sendResult(resultMessage);
                                     }
                                 }
                                 else
@@ -1556,6 +1597,8 @@ https.createServer(options, async function(request, response)
                                     // else, the data field is missing or did not transmit properly
                                     resultMessage.code = 400;
                                     resultMessage.message = "Bad Request: request data missing";
+
+                                    sendResult(resultMessage);
                                 }
                             });
                             break;
@@ -1575,6 +1618,8 @@ https.createServer(options, async function(request, response)
             // else, the pathname is not valid, send back 400 Bad Request
             resultMessage.code = 400;
             resultMessage.message = "Provided resource name is not valid";
+
+            sendResult(resultMessage);
         }
     }
     else
@@ -1582,6 +1627,8 @@ https.createServer(options, async function(request, response)
         // else, the method is not valid, send back 501 Not Implemented
         resultMessage.code = 501;
         resultMessage.message = "Method " + request.method + " is not valid or not implemented";
+
+        sendResult(resultMessage);
     }
 
 
