@@ -4,7 +4,7 @@ let url = require("url");
 let mysql = require("mysql");
 let fs = require("fs");
 let EventEmitter = require("events").EventEmitter;
-let validItems = ['user', 'pantry', 'site', 'box', 'recipe'];
+let validItems = ['user', 'pantry', 'site', 'box', 'recipe', 'userfav'];
 let validMethods = ['GET', 'POST', 'DELETE', 'PUT'];
 // TODO: implement array of json objects that keep track of valid search terms
 
@@ -923,8 +923,8 @@ https.createServer(options, async function(request, response)
                     }
                     break;
                 case "POST":
-
-                    switch (query.pathname) {
+                    switch (query.pathname)
+                    {
                         case "/user":
                             // CASE: adding new user
                             // query.searchParams.has("uEmail") && query.searchParams.has("uPassword") && query.searchParams.has("uName")
@@ -1186,7 +1186,8 @@ https.createServer(options, async function(request, response)
                                 let queryData = JSON.parse(data);
 
                                 if (queryData.hasOwnProperty("userID") && queryData.hasOwnProperty("recipeID")) {
-                                    dbQuery = `INSERT INTO User_has_Recipes (User_userID, Recipes_recipeID) VALUES (${queryData.userID}, ${queryData.recipeID})`;
+                                    let queryString = `INSERT INTO User_has_Recipes (User_userID, Recipes_recipeID) VALUES (${queryData.userID}, ${queryData.recipeID})`;
+                                    dbQuery.push(queryString);
 
                                     sendQuery(dbQuery).then(sendResult).catch(sendResult);
                                 } else {
