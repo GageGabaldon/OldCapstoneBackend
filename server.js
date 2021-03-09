@@ -930,7 +930,7 @@ https.createServer(async function(request, response)
 
                                 let queryResult = await sendQuery(dbQuery);
 
-                                getRecipeData(queryResult).then(sendResult).catch(sendResult);
+                                await getRecipeData(queryResult).then(sendResult).catch(sendResult);
                             }
                             else
                             {
@@ -1609,7 +1609,24 @@ https.createServer(async function(request, response)
 
                             break;
                     }
-                break;
+                    break;
+
+                case "OPTIONS":
+                    if(response.getHeader("Access-Control-Allow-Methods").includes(request.method))
+                    {
+                        resultMessage.code = 200;
+                        resultMessage.message = `Method ${request.method} is valid`;
+
+                        sendResult(resultMessage);
+                    }
+                    else
+                    {
+                        resultMessage.code = 501;
+                        resultMessage.message = `Method ${request.method} is not valid or not implemented`;
+
+                        sendResult(resultMessage);
+                    }
+                    break;
             }
 
         }
