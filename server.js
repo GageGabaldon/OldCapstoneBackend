@@ -971,8 +971,7 @@ https.createServer(async function(request, response)
                                             colString = colString.concat(", userPhone");
                                             valString = valString.concat(`, "${queryData.userPhone}"`);
                                         }
-                                        
-                                        if (queryData.hasOwnProperty("userZip")) {
+                                        else if (queryData.hasOwnProperty("userZip")) {
                                             colString = colString.concat(", userZip");
                                             valString = valString.concat(`, "${queryData.userZip}"`);
                                         }
@@ -1160,7 +1159,7 @@ https.createServer(async function(request, response)
 
                                 if (queryData.hasOwnProperty("boxName")) {
                                     // first, create entry in box table
-                                    line1 = `INSERT INTO Boxes (boxName) VALUES ("${queryData.boxName}");`;
+                                    line1 = `INSERT INTO Boxes (boxName) VALUES ("${queryData.boxName}") ON DUPLICATE KEY UPDATE boxName = "${queryData.boxName}";`;
 
                                     dbQuery.push(line1);
 
