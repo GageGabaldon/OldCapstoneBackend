@@ -1166,13 +1166,13 @@ https.createServer(async function(request, response)
                                     if (queryData.hasOwnProperty("ingredients")) {
                                         // for each ingredient
                                         for (let index = 0; index < queryData.ingredients.length; index++) {
-                                            if (queryData.ingredients[index].hasOwnProperty("ingName") && queryData.ingredients[index].hasOwnProperty("ingredientQuantity")) {
+                                            if (queryData.ingredients[index].hasOwnProperty("ingredientName") && queryData.ingredients[index].hasOwnProperty("ingredientQuantity") && queryData.ingredients[index].hasOwnProperty("ingredientUnit")) {
                                                 // next, add ingredients to ingredients table
-                                                line2 = `INSERT INTO Ingredients (IngName) SELECT "${queryData.ingredients[index].ingName}" FROM Ingredients WHERE NOT EXISTS (SELECT * FROM Ingredients WHERE Ingredients.IngName LIKE "${queryData.ingredients[index].ingName}") LIMIT 1`;
+                                                line2 = `INSERT INTO Ingredients (IngName) SELECT "${queryData.ingredients[index].ingredientName}" FROM Ingredients WHERE NOT EXISTS (SELECT * FROM Ingredients WHERE Ingredients.IngName LIKE "${queryData.ingredients[index].ingredientName}") LIMIT 1`;
                                                 dbQuery.push(line2);
 
                                                 // then, add ingredients to box_has_ingredients table
-                                                line3 = `INSERT INTO Boxes_has_Ingredients (Boxes_boxID, Ingredients_IngID, ingredientQuantity) SELECT boxID, IngID, ${queryData.ingredients[index].ingredientQuantity} FROM Boxes, Ingredients WHERE Boxes.boxName = "${queryData.boxName}" AND Ingredients.IngName = "${queryData.ingredients[index].ingName}"`;
+                                                line3 = `INSERT INTO Boxes_has_Ingredients (Boxes_boxID, Ingredients_IngID, ingredientQuantity, ingredientUnit) SELECT boxID, IngID, ${queryData.ingredients[index].ingredientQuantity}, "${queryData.ingredients[index].ingredientUnit}" FROM Boxes, Ingredients WHERE Boxes.boxName = "${queryData.boxName}" AND Ingredients.IngName = "${queryData.ingredients[index].ingredientName}"`;
                                                 dbQuery.push(line3);
                                             } else {
                                                 resultMessage.code = 400;
