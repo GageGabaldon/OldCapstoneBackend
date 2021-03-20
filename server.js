@@ -302,7 +302,7 @@ https.createServer(async function(request, response)
 
 
     /*
-        Function: formatSortBy
+        Function: formatLimit
         Arguments: query (query object from parsed URL)
         Description: This function checks the query for the limit tag, formats the necessary query string, and returns that string
         Return: a String that can be concatenated onto another query string to limit the query results. If the string is null, the
@@ -606,7 +606,7 @@ https.createServer(async function(request, response)
                                 if (true) {
                                     console.log("query formatted correctly\n");
                                     // if the auth code is valid, construct the dbquery
-                                    dbQuery.push(`SELECT userName, userPhone, userEmail FROM User where userID = ${query.searchParams.get("uid")}`);
+                                    dbQuery.push(`SELECT userName, userPhone, userEmail, userZip FROM User where userID = ${query.searchParams.get("uid")}`);
                                     // then, send the query to the database
                                     sendQuery(dbQuery).then(sendResult).catch(sendResult);
                                 } else if (false) {
@@ -625,7 +625,7 @@ https.createServer(async function(request, response)
                             } else if (query.searchParams.has("uemail")) {
                                 // todo: get password for user case
                                 // get user information based on email
-                                dbQuery.push(`SELECT userName, userPhone, userID FROM User WHERE userEmail = "${query.searchParams.get("uemail")}";`);
+                                dbQuery.push(`SELECT userName, userPhone, userID, userZip FROM User WHERE userEmail = "${query.searchParams.get("uemail")}";`);
 
                                 sendQuery(dbQuery).then(sendResult).catch(sendResult);
                             } else {
@@ -672,7 +672,7 @@ https.createServer(async function(request, response)
                             }
 
                             break;
-                        case "/sites":
+                        /*case "/sites":
                             // if request is for distribution sites/snap retailers, check query contents
                             if (query.searchParams.has("city")) {
                                 if (query.searchParams.has("county") || query.searchParams.has("state") || query.searchParams.has("zip")) {
@@ -733,7 +733,7 @@ https.createServer(async function(request, response)
                                 sendResult(resultMessage);
                             }
 
-                            break;
+                            break;*/
                         case "/recipe":
                             // if request is for recipes, check query contents
                             if (query.searchParams.has("uid")) {
@@ -906,7 +906,7 @@ https.createServer(async function(request, response)
                                 if (query.searchParams.get("boxname") === '*') {
                                     queryString = `SELECT boxID, boxName, IngName FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID;`;
                                 } else {
-                                    queryString = `SELECT boxID, boxName, IngName FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxName = "${query.searchParams.get("boxname")}";`
+                                    queryString = `SELECT boxID, boxName, IngName FROM Boxes INNER JOIN Boxes_has_Ingredients ON Boxes.boxID = Boxes_has_Ingredients.Boxes_boxID INNER JOIN Ingredients ON Boxes_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Boxes.boxName = "${query.searchParams.get("boxname")}";`;
                                 }
 
                                 dbQuery.push(queryString);
@@ -971,6 +971,12 @@ https.createServer(async function(request, response)
                                             colString = colString.concat(", userPhone");
                                             valString = valString.concat(`, "${queryData.userPhone}"`);
                                         }
+                                        
+                                        if (queryData.hasOwnProperty("userZip")) {
+                                            colString = colString.concat(", userZip");
+                                            valString = valString.concat(`, "${queryData.userZip}"`);
+                                        }
+                                        
 
                                         colString = colString.concat(") ");
                                         valString = valString.concat(");");
@@ -1033,6 +1039,7 @@ https.createServer(async function(request, response)
                             });
 
                             break;
+
                         case "/recipe":
                             request.on("data", function (inData) {
                                 data = data.concat(inData.toString());
@@ -1194,10 +1201,10 @@ https.createServer(async function(request, response)
                             });
 
                             break;
-                        case "/site":
+                        /*case "/site":
                             // CASE: posting new distribution site
 
-                            break;
+                            break;*/
                         case "/userfav":
                             // CASE: add recipe to user favorites
                             request.on("data", function (inData) {
@@ -1326,7 +1333,7 @@ https.createServer(async function(request, response)
                             }
 
                         break;
-                        case "/sites":
+                        /*case "/sites":
                             if (query.searchParams.has("siteName"))
                             {
                                  if (true)
@@ -1360,7 +1367,7 @@ https.createServer(async function(request, response)
 
                                 sendResult(resultMessage);
                             }
-                            break;
+                            break;*/
                         case "/recipe":
                             // if request is for recipes, check query contents
                             if (query.searchParams.has("recipeID"))
@@ -1416,12 +1423,17 @@ https.createServer(async function(request, response)
                         break;
                     }
                     break;
+
                 case "PUT":
                     // put logic goes here
                     data = "";
                     switch (query.pathname)
                     {
                         case "/user":
+                        	request.on("data", function(inData)
+                            {
+                                data = data.concat(inData);
+                            });
 
                             break;
                         case "/pantry":
@@ -1472,7 +1484,6 @@ https.createServer(async function(request, response)
                                     sendResult(resultMessage);
                                 }
                             });
-
 
                             break;
                         case "/recipe":
@@ -1605,9 +1616,7 @@ https.createServer(async function(request, response)
                         case "/box":
 
                             break;
-                        case "/sites":
 
-                            break;
                     }
                     break;
 
