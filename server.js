@@ -1434,6 +1434,24 @@ https.createServer(async function(request, response)
                                 data = data.concat(inData);
                             });
 
+                            request.on("end", function () {
+                                let queryData = JSON.parse(data);
+
+                                if (queryData.hasOwnProperty("userID")) 
+                                {
+
+                            		let queryString  = `UPDATE User SET userName = "${queryData.userName}", userPhone = "${queryData.userPhone}",userEmail = "${queryData.userEmail}",userKey = "${queryData.userPassword}", userZip = "${queryData.userZip}" WHERE userID = ${queryData.userID}`;
+                                    dbQuery.push(queryString );
+	                                   
+                                  	sendQuery(dbQuery).then(sendResult).catch(sendResult);
+                                } else {
+                                    resultMessage.code = 400;
+                                    resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
+
+                                    sendResult(resultMessage);
+                                }
+                            });
+
                             break;
                         case "/pantry":
                             request.on("data", function(inData)
