@@ -1631,7 +1631,7 @@ https.createServer(async function(request, response)
                             });
                             break;
                         case "/box":
-		                    let line1 = "", line2 = "", line3 = "", line4 ="";
+		                    let line1 = "", line2 = "", line3 = "";
 
                             request.on("data", function (dataIn) {
                                 data = data.concat(dataIn);
@@ -1649,7 +1649,7 @@ https.createServer(async function(request, response)
                                     if (queryData.hasOwnProperty("ingredients")) {
                                         // for each ingredient
                                         for (let index = 0; index < queryData.ingredients.length; index++) {
-                                            if (queryData.ingredients[index].hasOwnProperty("ingredientCurrentName")) {
+                                            if (queryData.ingredients[index].hasOwnProperty("ingredientCurrentName") ) {
                                                 
                                                 line2 = `UPDATE Ingredients SET IngName = "${queryData.ingredients[index].ingredientCurrentName}" WHERE Ingredients.IngName = "${queryData.ingredients[index].ingredientOldName}"`;
                                                 dbQuery.push(line2);
@@ -1665,8 +1665,8 @@ https.createServer(async function(request, response)
                                                 break;
                                             }
                                             
-                                            if(queryData.ingredients[index].hasOwnProperty("ingredientQuantity")){
-                                            	line3 = `UPDATE Boxes_has_Ingredients SET ingredientQuantity = ${queryData.ingredients[index].ingredientQuantity} WHERE Boxes_boxID = ${queryData.boxID} AND Ingredients_IngID = (SELECT IngID FROM Ingredients WHERE IngName = "${queryData.ingredients[index].ingredientCurrentName}")`;
+                                            if(queryData.ingredients[index].hasOwnProperty("ingredientQuantity") && queryData.ingredients[index].hasOwnProperty("ingredientUnit")){
+                                            	line3 = `UPDATE Boxes_has_Ingredients SET ingredientQuantity = ${queryData.ingredients[index].ingredientQuantity}, ingredientUnit = "${queryData.ingredients[index].ingredientUnit}" WHERE Boxes_boxID = ${queryData.boxID} AND Ingredients_IngID = (SELECT IngID FROM Ingredients WHERE IngName = "${queryData.ingredients[index].ingredientCurrentName}")`;
                                                 dbQuery.push(line3);
 
                                             }
@@ -1680,20 +1680,6 @@ https.createServer(async function(request, response)
                                                 break;
                                             }
 
-                                            if(queryData.ingredients[index].hasOwnProperty("ingredientUnit")){
-                                            	line3 = `UPDATE Boxes_has_Ingredients SET ingredientUnit = "${queryData.ingredients[index].ingredientUnit}" WHERE Boxes_boxID = ${queryData.boxID} AND Ingredients_IngID = (SELECT IngID FROM Ingredients WHERE IngName = "${queryData.ingredients[index].ingredientCurrentName}")`;
-                                                dbQuery.push(line3);
-
-                                            }
-                                            else 
-                                            {
-                                                resultMessage.code = 400;
-                                                resultMessage.message = "Request JSON data is missing fields or otherwise formatted incorrectly";
-
-                                                sendResult(resultMessage);
-
-                                                break;
-                                            }
                                         }
                                         // send queries
                                         sendQuery(dbQuery).then(sendResult).catch(sendResult);
