@@ -361,7 +361,7 @@ https.createServer(async function(request, response)
             queryIDs_s = `(${queryIDs.toString()})`;
 
             // format query string for getting ingredients, use stringified recipeID array
-            let ingredientQuery = `SELECT Recipes_recipeID, IngID, IngName FROM FridgeFiller.Recipe_has_Ingredients INNER JOIN Ingredients ON Recipe_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Recipe_has_Ingredients.Recipes_recipeID IN ${queryIDs_s};`;
+            let ingredientQuery = `SELECT Recipes_recipeID, IngID, IngName, ingredientQuantity, ingredientUnit FROM FridgeFiller.Recipe_has_Ingredients INNER JOIN Ingredients ON Recipe_has_Ingredients.Ingredients_IngID = Ingredients.IngID WHERE Recipe_has_Ingredients.Recipes_recipeID IN ${queryIDs_s};`;
             querySet.push(ingredientQuery);
 
             // format query string for getting steps, use stringified recipeID array
